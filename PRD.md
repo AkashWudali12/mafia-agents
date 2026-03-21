@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This project is a multi-agent reinforcement learning system for training an LLM-based agent to play **Mafia** in a structured, partially observable social-deduction environment. The primary training target is **Qwen3 8B**, with training runs executed on **Modal**. During training, the learned policy will compete against an opponent pool composed of multiple external model-backed agents accessed through **OpenRouter**.
+This project is a multi-agent reinforcement learning system for training an LLM-based agent to play **Mafia** in a structured, partially observable social-deduction environment. The primary training target is **Qwen3 8B**, but **only when that agent is assigned the mafia role**; doctor, detective, and villager seats are always filled by the opponent pool. Training runs execute on **Modal**. During training, the learned mafia policy competes against an opponent pool composed of multiple external model-backed agents accessed through **OpenRouter**.
 
 The system includes:
 
@@ -22,11 +22,12 @@ The purpose of the project is to create a robust, trainable RL environment that 
 
 ### Primary goals
 
-- Train a **Qwen3 8B** policy to play Mafia competitively.
-- Support **doctor**, **detective**, **villager**, and **mafia** roles.
+- Train a **Qwen3 8B** policy to play **only as mafia** (town roles use fixed opponent policies).
+- Run **6-player** games with composition **1 mafia, 1 doctor, 1 detective, 3 villagers**.
+- Support **doctor**, **detective**, **villager**, and **mafia** roles with the above counts.
 - Use **Modal** as the execution platform for scalable training jobs.
 - Use an **opponent pool of OpenRouter models** during training to improve robustness and reduce overfitting to a narrow set of behaviors.
-- Define training configuration in a reusable `` file.
+- Define training configuration in a reusable `train.yaml` file.
 - Build a clean architecture that separates game logic, observation building, policy execution, language rendering, training orchestration, and evaluation.
 
 * Support structured dialogue acts and optional text messages.
@@ -59,7 +60,7 @@ Unlike board games with fully structured state, Mafia requires agents to reason 
 
 ## 4. Product Vision
 
-Build a research-grade Python framework where a trainable LLM policy can repeatedly play Mafia against a diverse pool of scripted and model-based opponents, learn from the resulting trajectories, and improve its strategic performance across roles.
+Build a research-grade Python framework where a trainable LLM policy can repeatedly play Mafia **as the sole mafia player** against a diverse pool of scripted and model-based opponents occupying town roles, learn from the resulting trajectories, and improve its strategic performance in that role.
 
 The platform should be modular enough that:
 
@@ -89,7 +90,7 @@ The platform should be modular enough that:
 
 ### Base game size
 
-Initial version should support a **6-player game** to keep the environment tractable.
+The v1 game is **always 6 players**: **1 mafia, 1 doctor, 1 detective, 3 villagers**. This keeps the environment tractable and matches the training setup (one learned mafia agent vs five opponent-controlled town seats).
 
 ### Roles in v1
 
@@ -324,6 +325,7 @@ Shaping rewards should be small relative to terminal reward magnitude.
 ### Training target
 
 - **Qwen3 8B** is the only trainable policy in v1.
+- **Qwen3 8B is used exclusively for the mafia seat.** Doctor, detective, and all three villagers are played by models from the opponent pool (or other fixed policies), not by the trainable checkpoint.
 
 ### Training platform
 
@@ -332,7 +334,7 @@ Shaping rewards should be small relative to terminal reward magnitude.
 
 ### Opponent pool
 
-During training, the Qwen3 8B policy will play against an opponent pool consisting of external OpenRouter-backed models.
+During training, when the trainable mafia player acts, it is **Qwen3 8B**; the other five seats in each 6-player game are filled from the opponent pool (external OpenRouter-backed models or configured fixed policies).
 
 Initial opponent pool:
 
@@ -409,6 +411,13 @@ The system should support two modes:
 
 Default training should use **templated or constrained short text** to reduce variance and cost.
 
+### Technology choices
+
+- **Pydantic AI** is the agent framework for LLM inference in v1—built by the Pydantic team, FastAPI-style ergonomics, and **structured outputs** via Pydantic models. Use it for opponent (and other OpenRouter-backed) policies: **`Agent`** instances with **`OpenRouterModel`** and **`OpenRouterProvider`**, model IDs from `train.yaml`, and **result types** (`BaseModel`) that match the environment’s action schema so invalid JSON is caught at validation time. Retries, tool use, and dependencies are available if needed; the **Mafia phase and turn logic stay in plain Python**—the environment remains the source of truth for legality.
+- **OpenRouter** is the **inference API** for those external models. Pydantic AI supports OpenRouter as a first-class provider; wire API keys and model names from config rather than ad hoc HTTP clients for each baseline.
+- **Pydantic (v2)** and **`pydantic-settings`** remain appropriate for **non-agent** config and shared types (e.g. loading `train.yaml`, shared `BaseModel` definitions used by both the engine and agents).
+- The trainable **Qwen3 8B** policy runs inside the training job (e.g. on Modal) and is **not** required to go through OpenRouter unless you explicitly route it that way for convenience.
+
 ---
 
 ## 12. Modal Requirements
@@ -466,8 +475,9 @@ The project must include a `train.yaml` file as the canonical place for training
 
 #### `environment`
 
-- num\_players
-- roles
+- num\_players (v1: **6**)
+- roles (v1: **1 mafia, 1 doctor, 1 detective, 3 villagers**)
+- which\_seat\_uses\_trainable\_policy (v1: **mafia only**; all other seats use the opponent pool)
 - discussion\_rounds
 - reveal\_roles\_on\_death
 - tie\_break\_rule
@@ -542,8 +552,9 @@ project:
   seed: 42
 
 environment:
-  num_players: 5
-  roles: [mafia, doctor, detective, villager, villager]
+  num_players: 6
+  roles: [mafia, doctor, detective, villager, villager, villager]
+  which_seat_uses_trainable_policy: mafia
   discussion_rounds: 2
   reveal_roles_on_death: true
   tie_break_rule: lowest_id
@@ -632,7 +643,7 @@ logging:
 - Load training config from `train.yaml`.
 - Run episodes repeatedly on Modal.
 - Query OpenRouter opponents during rollout.
-- Train Qwen3 8B policy from collected experience.
+- Train the Qwen3 8B **mafia-only** policy from collected experience (rollouts where the trainable agent holds the mafia role).
 - Save checkpoints and metrics.
 - Support periodic evaluation.
 
@@ -679,7 +690,7 @@ logging:
 ### Minimum success bar for v1
 
 - end-to-end training runs complete successfully on Modal
-- Qwen3 8B can participate in games across all roles
+- Qwen3 8B is trained and evaluated **only as mafia** in 6-player games (1 mafia / 1 doctor / 1 detective / 3 villagers)
 - doctor mechanics function correctly
 - OpenRouter opponent pool is integrated and sampled during training
 - `train.yaml` drives experiment configuration without hard-coded changes
@@ -706,7 +717,7 @@ Terminal-only reward is clean but slow; shaping must be balanced carefully.
 
 ### Role imbalance
 
-5-player Mafia with doctor and detective may require tuning for fairness.
+6-player Mafia with doctor and detective may require tuning for fairness; the trainable agent only ever plays mafia, so town-side strength is entirely from the opponent pool.
 
 ### Data efficiency
 
@@ -719,7 +730,7 @@ Qwen3 8B may require a large number of rollouts to improve meaningfully, especia
 ### Modules
 
 - `env/`: game engine, rules, observation builder
-- `agents/`: trainable policy, heuristic bots, OpenRouter wrappers
+- `agents/`: trainable policy, heuristic bots, **Pydantic AI** + **OpenRouter** wrappers for opponent models
 - `training/`: rollout generation, optimization loop, checkpointing
 - `config/`: `train.yaml`
 - `infra/`: Modal entrypoints, job config, storage integration
@@ -794,10 +805,10 @@ The best v1 architecture is:
 
 - **structured RL environment first**
 - **doctor included from day one**
-- **Qwen3 8B as the only trainable policy**
+- **Qwen3 8B as the only trainable policy, restricted to the mafia role**
 - **OpenRouter opponent pool as fixed external policies**
 - **Modal for scalable rollout and training execution**
-- ``\*\* as the single source of truth for experiment settings\*\*
+- **`train.yaml` as the single source of truth for experiment settings**
 
 This design is ambitious but still grounded. It preserves the social and deceptive aspects of Mafia while avoiding the chaos of unconstrained token-level RL from the start.
 
