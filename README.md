@@ -2,6 +2,8 @@
 
 Foundational contracts and engine skeleton for a Mafia multi-agent RL environment.
 
+The foundational engine supports 5- or 6-player games with exactly one mafia, optional doctor and detective seats, and villagers filling the remaining seats.
+
 ## Prerequisites
 
 - **Python 3.13+** (see `requires-python` in `pyproject.toml`)

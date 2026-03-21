@@ -43,24 +43,30 @@ def apply_action(state: GameState, action: Action) -> GameState:
         return _progress_after_noop(next_state, normalized.actor)
     match state.phase:
         case Phase.NIGHT_MAFIA:
-            return next_state.model_copy(
+            progressed = next_state.model_copy(
                 update={
                     "pending_night_actions": next_state.pending_night_actions.model_copy(
                         update={"mafia_target": normalized.target}
                     ),
-                    "phase": Phase.NIGHT_DOCTOR,
+                    "phase": _next_phase_after_mafia(next_state),
                 }
             )
+            if progressed.phase == Phase.DAY_ANNOUNCEMENT:
+                return _resolve_night(progressed)
+            return progressed
         case Phase.NIGHT_DOCTOR:
-            return next_state.model_copy(
+            progressed = next_state.model_copy(
                 update={
                     "pending_night_actions": next_state.pending_night_actions.model_copy(
                         update={"doctor_target": normalized.target}
                     ),
                     "doctor_last_target": normalized.target,
-                    "phase": Phase.NIGHT_DETECTIVE,
+                    "phase": _next_phase_after_doctor(next_state),
                 }
             )
+            if progressed.phase == Phase.DAY_ANNOUNCEMENT:
+                return _resolve_night(progressed)
+            return progressed
         case Phase.NIGHT_DETECTIVE:
             resolved = next_state.model_copy(
                 update={
@@ -246,9 +252,15 @@ def _start_next_day(state: GameState) -> GameState:
 def _progress_after_noop(state: GameState, actor: int) -> GameState:
     match state.phase:
         case Phase.NIGHT_MAFIA if actor == seat_for_role(state, Role.MAFIA):
-            return state.model_copy(update={"phase": Phase.NIGHT_DOCTOR})
+            progressed = state.model_copy(update={"phase": _next_phase_after_mafia(state)})
+            if progressed.phase == Phase.DAY_ANNOUNCEMENT:
+                return _resolve_night(progressed)
+            return progressed
         case Phase.NIGHT_DOCTOR if actor == seat_for_role(state, Role.DOCTOR):
-            return state.model_copy(update={"phase": Phase.NIGHT_DETECTIVE})
+            progressed = state.model_copy(update={"phase": _next_phase_after_doctor(state)})
+            if progressed.phase == Phase.DAY_ANNOUNCEMENT:
+                return _resolve_night(progressed)
+            return progressed
         case Phase.NIGHT_DETECTIVE if actor == seat_for_role(state, Role.DETECTIVE):
             return _resolve_night(state)
         case Phase.DAY_DISCUSSION if actor == current_speaker(state):
@@ -264,3 +276,17 @@ def _progress_after_noop(state: GameState, actor: int) -> GameState:
             return progressed
         case _:
             return state
+
+
+def _next_phase_after_mafia(state: GameState) -> Phase:
+    if seat_for_role(state, Role.DOCTOR) != -1:
+        return Phase.NIGHT_DOCTOR
+    if seat_for_role(state, Role.DETECTIVE) != -1:
+        return Phase.NIGHT_DETECTIVE
+    return Phase.DAY_ANNOUNCEMENT
+
+
+def _next_phase_after_doctor(state: GameState) -> Phase:
+    if seat_for_role(state, Role.DETECTIVE) != -1:
+        return Phase.NIGHT_DETECTIVE
+    return Phase.DAY_ANNOUNCEMENT

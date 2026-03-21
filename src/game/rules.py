@@ -108,10 +108,11 @@ def validate_action(state: GameState, action: Action) -> ValidationResult:
 
 def build_observation(state: GameState, actor: int) -> Observation:
     role = state.roles[actor]
+    detective_seat = seat_for_role(state, Role.DETECTIVE)
     investigations = tuple(
         item
         for item in state.investigation_history
-        if role == Role.DETECTIVE and actor == seat_for_role(state, Role.DETECTIVE)
+        if role == Role.DETECTIVE and actor == detective_seat
     )
     return Observation(
         actor=actor,
@@ -137,7 +138,10 @@ def build_observation(state: GameState, actor: int) -> Observation:
 
 
 def seat_for_role(state: GameState, role: Role) -> int:
-    return state.roles.index(role)
+    try:
+        return state.roles.index(role)
+    except ValueError:
+        return -1
 
 
 def current_speaker(state: GameState) -> int | None:
