@@ -72,7 +72,7 @@ def test_detective_only_sees_private_investigation_results() -> None:
 
 def test_voting_tie_break_uses_lowest_player_id() -> None:
     state = new_game()
-    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=5))
+    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
     state = apply_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=4))
     state = apply_action(state, Action(actor=2, action_type=ActionType.INVESTIGATE, target=0))
     state = advance_phase(state)
@@ -116,7 +116,7 @@ def test_invalid_action_is_normalized_to_noop_and_logged() -> None:
 
 def test_invalid_day_vote_does_not_create_placeholder_ballot() -> None:
     state = new_game()
-    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=5))
+    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
     state = apply_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=4))
     state = apply_action(state, Action(actor=2, action_type=ActionType.INVESTIGATE, target=0))
     state = advance_phase(state)
@@ -138,7 +138,7 @@ def test_invalid_day_vote_does_not_create_placeholder_ballot() -> None:
 
 def test_explicit_noop_during_voting_skips_ballot_without_affecting_tally() -> None:
     state = new_game()
-    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=5))
+    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
     state = apply_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=4))
     state = apply_action(state, Action(actor=2, action_type=ActionType.INVESTIGATE, target=0))
     state = advance_phase(state)
@@ -161,7 +161,7 @@ def test_explicit_noop_during_voting_skips_ballot_without_affecting_tally() -> N
 def test_doctor_repeat_target_can_be_disabled() -> None:
     config = EnvironmentConfig(doctor_can_repeat_target=False)
     state = new_game(config=config)
-    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=5))
+    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
     state = apply_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=3))
     state = apply_action(state, Action(actor=2, action_type=ActionType.INVESTIGATE, target=0))
     state = advance_phase(state)
@@ -176,7 +176,7 @@ def test_doctor_repeat_target_can_be_disabled() -> None:
         state = apply_action(state, Action(actor=actor, action_type=ActionType.VOTE, target=target))
     state = advance_phase(state)
 
-    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=5))
+    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
     illegal = validate_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=3))
     assert ValidationErrorCode.REPEATED_PROTECT_FORBIDDEN in illegal.errors
 
@@ -193,7 +193,7 @@ def test_first_legal_policy_returns_contract_action() -> None:
 
 def test_town_wins_when_mafia_is_eliminated() -> None:
     state = new_game()
-    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=5))
+    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
     state = apply_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=4))
     state = apply_action(state, Action(actor=2, action_type=ActionType.INVESTIGATE, target=0))
     state = advance_phase(state)

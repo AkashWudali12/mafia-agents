@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This project is a multi-agent reinforcement learning system for training an LLM-based agent to play **Mafia** in a structured, partially observable social-deduction environment. The primary training target is **Qwen3 8B**, but **only when that agent is assigned the mafia role**; doctor, detective, and villager seats are always filled by the opponent pool. Training runs execute on **Modal**. During training, the learned mafia policy competes against an opponent pool composed of multiple external model-backed agents accessed through **OpenRouter**.
+This project is a multi-agent reinforcement learning system for training an LLM-based agent to play **Mafia** in a structured, partially observable social-deduction environment. The primary training target is **Qwen3 8B**, and the trainable agent may be assigned **any supported role** in a given episode. Training runs execute on **Modal**. During training, the learned policy competes against an opponent pool composed of multiple external model-backed agents accessed through **OpenRouter**, with reward/scoring interpreted relative to the trainable agent’s current role and faction.
 
 The system includes:
 
@@ -22,8 +22,8 @@ The purpose of the project is to create a robust, trainable RL environment that 
 
 ### Primary goals
 
-- Train a **Qwen3 8B** policy to play **only as mafia** (town roles use fixed opponent policies).
-- Run **6-player** games with composition **1 mafia, 1 doctor, 1 detective, 3 villagers**.
+- Train a **Qwen3 8B** policy to play the **full game across all supported roles**, not just a single fixed seat.
+- Run **5-player** games with composition **1 mafia, 1 doctor, 1 detective, 2 villagers**.
 - Support **doctor**, **detective**, **villager**, and **mafia** roles with the above counts.
 - Use **Modal** as the execution platform for scalable training jobs.
 - Use an **opponent pool of OpenRouter models** during training to improve robustness and reduce overfitting to a narrow set of behaviors.
@@ -60,7 +60,7 @@ Unlike board games with fully structured state, Mafia requires agents to reason 
 
 ## 4. Product Vision
 
-Build a research-grade Python framework where a trainable LLM policy can repeatedly play Mafia **as the sole mafia player** against a diverse pool of scripted and model-based opponents occupying town roles, learn from the resulting trajectories, and improve its strategic performance in that role.
+Build a research-grade Python framework where a trainable LLM policy can repeatedly play Mafia across **mafia, doctor, detective, and villager** assignments against a diverse pool of scripted and model-based opponents, learn from the resulting trajectories, and improve its strategic performance across the game as a whole rather than for only one seat.
 
 The platform should be modular enough that:
 
@@ -90,14 +90,14 @@ The platform should be modular enough that:
 
 ### Base game size
 
-The v1 game is **always 6 players**: **1 mafia, 1 doctor, 1 detective, 3 villagers**. This keeps the environment tractable and matches the training setup (one learned mafia agent vs five opponent-controlled town seats).
+The v1 game is **always 5 players**: **1 mafia, 1 doctor, 1 detective, 2 villagers**. This keeps the environment tractable and matches the training setup, where the trainable agent can occupy any one seat while the remaining seats are filled by opponent-controlled policies.
 
 ### Roles in v1
 
 - 1 Mafia
 - 1 Detective
 - 1 Doctor
-- 3 Villagers
+- 2 Villagers
 
 This gives the game:
 
@@ -284,16 +284,22 @@ The default shaping should remain conservative.
 
 ### Primary reward
 
-The main reward signal should be terminal and team-based.
+The main reward signal should be terminal, team-based, and interpreted relative to the trainable agent’s assigned role for that episode.
 
 - `+1.0` if the agent’s faction wins
 - `-1.0` if the agent’s faction loses
+
+The training system must not assume mafia-specific scoring when the trainable agent is playing a town role. Reward computation should always be derived from:
+
+- the trainable agent’s role
+- the trainable agent’s faction
+- the legal responsibilities and objectives of that role
 
 ### Optional shaping rewards
 
 Shaping rewards should be small relative to terminal reward magnitude.
 
-#### For all non-mafia roles
+#### For town-aligned roles
 
 - small positive reward for voting out mafia
 - small negative reward for voting out town
@@ -312,6 +318,13 @@ Shaping rewards should be small relative to terminal reward magnitude.
 
 - small positive reward for successful protection that prevents a kill
 
+#### Cross-role reward requirements
+
+- Reward logic must be role-aware at rollout time rather than hard-coded to a single seat.
+- Shaping terms should only be applied when they are semantically valid for the current role.
+- Metrics and logged reward breakdowns should include the role under which each reward was earned.
+- If reward normalization is used, it should support per-role normalization so one role’s shaping density does not dominate training.
+
 ### Reward design principles
 
 - Keep shaping low magnitude to avoid reward hacking.
@@ -325,7 +338,7 @@ Shaping rewards should be small relative to terminal reward magnitude.
 ### Training target
 
 - **Qwen3 8B** is the only trainable policy in v1.
-- **Qwen3 8B is used exclusively for the mafia seat.** Doctor, detective, and all three villagers are played by models from the opponent pool (or other fixed policies), not by the trainable checkpoint.
+- **Qwen3 8B may occupy any supported role in v1.** The assigned seat for the trainable policy should be selected at episode start according to configuration. All non-trainable seats are played by models from the opponent pool (or other fixed policies).
 
 ### Training platform
 
@@ -334,7 +347,7 @@ Shaping rewards should be small relative to terminal reward magnitude.
 
 ### Opponent pool
 
-During training, when the trainable mafia player acts, it is **Qwen3 8B**; the other five seats in each 6-player game are filled from the opponent pool (external OpenRouter-backed models or configured fixed policies).
+During training, the trainable acting seat is **Qwen3 8B** regardless of whether that seat is mafia, doctor, detective, or villager for the episode; the other four seats in each 5-player game are filled from the opponent pool (external OpenRouter-backed models or configured fixed policies).
 
 Initial opponent pool:
 
@@ -364,6 +377,8 @@ The training system should support:
 - checkpointed policy updates
 - replay or trajectory logging
 - evaluation against frozen baseline pools
+- role-conditioned training where the trainable agent’s assigned role may vary by episode
+- configurable role sampling so training can be uniform, weighted, or curriculum-based across roles
 
 ### Open question to resolve during implementation
 
@@ -374,6 +389,15 @@ Because OpenRouter models are inference-only external opponents, the training lo
 - how API latency and cost constraints affect throughput
 
 The PRD assumes these opponents are **fixed external policies**, not trainable participants.
+
+### Role assignment during training
+
+The training pipeline should explicitly support episodic assignment of the trainable policy to different roles.
+
+- At reset, assign the trainable seat to one legal role instance from the configured game composition.
+- The role assignment policy should be configurable in `train.yaml`.
+- The observation for the trainable agent must always include its own role so a shared policy can condition behavior appropriately.
+- Logged trajectories, metrics, and checkpoints should preserve the role label for each episode.
 
 ---
 
@@ -459,6 +483,7 @@ The project must include a `train.yaml` file as the canonical place for training
 
 - environment settings
 - role settings
+- trainable role assignment settings
 - opponent pool settings
 - model settings
 - training hyperparameters
@@ -475,9 +500,10 @@ The project must include a `train.yaml` file as the canonical place for training
 
 #### `environment`
 
-- num\_players (v1: **6**)
-- roles (v1: **1 mafia, 1 doctor, 1 detective, 3 villagers**)
-- which\_seat\_uses\_trainable\_policy (v1: **mafia only**; all other seats use the opponent pool)
+- num\_players (v1: **5**)
+- roles (v1: **1 mafia, 1 doctor, 1 detective, 2 villagers**)
+- trainable\_seat\_selection (v1: configurable; the trainable policy may occupy any supported role seat)
+- trainable\_role\_sampling (e.g. uniform, weighted, curriculum)
 - discussion\_rounds
 - reveal\_roles\_on\_death
 - tie\_break\_rule
@@ -552,9 +578,10 @@ project:
   seed: 42
 
 environment:
-  num_players: 6
-  roles: [mafia, doctor, detective, villager, villager, villager]
-  which_seat_uses_trainable_policy: mafia
+  num_players: 5
+  roles: [mafia, doctor, detective, villager, villager]
+  trainable_seat_selection: random_supported_role
+  trainable_role_sampling: uniform
   discussion_rounds: 2
   reveal_roles_on_death: true
   tie_break_rule: lowest_id
@@ -643,9 +670,10 @@ logging:
 - Load training config from `train.yaml`.
 - Run episodes repeatedly on Modal.
 - Query OpenRouter opponents during rollout.
-- Train the Qwen3 8B **mafia-only** policy from collected experience (rollouts where the trainable agent holds the mafia role).
+- Train the Qwen3 8B policy from collected experience across episodes where the trainable agent may hold **any supported role**.
 - Save checkpoints and metrics.
 - Support periodic evaluation.
+- Track metrics and reward breakdowns by role and by faction.
 
 ### Evaluation system
 
@@ -676,6 +704,7 @@ logging:
 - Qwen3 8B improves win rate over time against the opponent pool.
 - Qwen3 8B performs above random and above heuristic baselines.
 - The environment runs stably across long Modal jobs.
+- Qwen3 8B improves under mixed-role training rather than only on a single role.
 
 ### Secondary metrics
 
@@ -690,7 +719,7 @@ logging:
 ### Minimum success bar for v1
 
 - end-to-end training runs complete successfully on Modal
-- Qwen3 8B is trained and evaluated **only as mafia** in 6-player games (1 mafia / 1 doctor / 1 detective / 3 villagers)
+- Qwen3 8B is trained and evaluated across **mafia, doctor, detective, and villager** assignments in 5-player games (1 mafia / 1 doctor / 1 detective / 2 villagers)
 - doctor mechanics function correctly
 - OpenRouter opponent pool is integrated and sampled during training
 - `train.yaml` drives experiment configuration without hard-coded changes
@@ -717,7 +746,7 @@ Terminal-only reward is clean but slow; shaping must be balanced carefully.
 
 ### Role imbalance
 
-6-player Mafia with doctor and detective may require tuning for fairness; the trainable agent only ever plays mafia, so town-side strength is entirely from the opponent pool.
+5-player Mafia with doctor and detective may require tuning for fairness; because the trainable agent now plays across roles, the system must avoid over-optimizing toward the most frequently sampled or most densely rewarded roles.
 
 ### Data efficiency
 
@@ -805,7 +834,7 @@ The best v1 architecture is:
 
 - **structured RL environment first**
 - **doctor included from day one**
-- **Qwen3 8B as the only trainable policy, restricted to the mafia role**
+- **Qwen3 8B as the only trainable policy, rotating across supported roles**
 - **OpenRouter opponent pool as fixed external policies**
 - **Modal for scalable rollout and training execution**
 - **`train.yaml` as the single source of truth for experiment settings**

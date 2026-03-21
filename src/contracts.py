@@ -169,12 +169,11 @@ class Observation(FrozenModel):
 
 
 class EnvironmentConfig(FrozenModel):
-    num_players: int = 6
+    num_players: int = 5
     roles: tuple[Role, ...] = (
         Role.MAFIA,
         Role.DOCTOR,
         Role.DETECTIVE,
-        Role.VILLAGER,
         Role.VILLAGER,
         Role.VILLAGER,
     )
@@ -189,8 +188,8 @@ class EnvironmentConfig(FrozenModel):
 
     @model_validator(mode="after")
     def validate_roles(self) -> "EnvironmentConfig":
-        if self.num_players != 6:
-            raise ValueError("v1 supports exactly 6 players")
+        if self.num_players != 5:
+            raise ValueError("v1 supports exactly 5 players")
         if len(self.roles) != self.num_players:
             raise ValueError("roles must match num_players")
         expected = sorted(
@@ -200,11 +199,10 @@ class EnvironmentConfig(FrozenModel):
                 Role.DETECTIVE,
                 Role.VILLAGER,
                 Role.VILLAGER,
-                Role.VILLAGER,
             ]
         )
         if sorted(self.roles) != expected:
-            raise ValueError("roles must be the fixed v1 six-player composition")
+            raise ValueError("roles must be the fixed v1 five-player composition")
         if self.discussion_rounds < 0:
             raise ValueError("discussion_rounds must be non-negative")
         if self.max_days < 1:
