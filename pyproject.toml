@@ -18,7 +18,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/game", "src/policies"]
+packages = ["src/game", "src/policies", "src/train"]
 include = ["src/contracts.py"]
 
 [tool.pytest.ini_options]
