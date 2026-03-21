@@ -7,9 +7,11 @@ from .engine import (
     new_game,
     validate_action,
 )
+from .state import PendingNightActions
 
 __all__ = [
     "GameState",
+    "PendingNightActions",
     "advance_phase",
     "apply_action",
     "build_observation",
