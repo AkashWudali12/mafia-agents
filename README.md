@@ -38,6 +38,39 @@ uv run pytest
 
 Tests live under `tests/`; `pythonpath` is configured so imports resolve from `src/`.
 
+## Real model proof path
+
+Engineer 2 now includes a narrow, opt-in proof that one real OpenRouter-backed model can complete:
+
+`Observation -> prompt -> JSON -> Action`
+
+Relevant modules:
+
+- `src/policies/openrouter_client.py`: real OpenRouter client built on Pydantic AI
+- `src/policies/openrouter_policy.py`: policy adapter that renders, calls the client, parses, and normalizes
+- `src/policies/rendering.py`: model prompt construction
+- `src/policies/parsing.py`: JSON parsing and legality normalization
+
+Required environment:
+
+- `OPENROUTER_API_KEY`: OpenRouter API key
+- `RUN_OPENROUTER_LIVE_TESTS=1`: explicit opt-in to run the live networked proof
+- `OPENROUTER_MODEL`: optional override for the live proof model id
+  - default: `openai/gpt-4.1-mini`
+
+Run only the live proof:
+
+```bash
+RUN_OPENROUTER_LIVE_TESTS=1 OPENROUTER_API_KEY=... uv run pytest tests/integration/test_openrouter_live.py
+```
+
+Engineer 3 handoff:
+
+- instantiate `PydanticAiOpenRouterClient`
+- pass it into `OpenRouterPolicy`
+- source `model`, `temperature`, and `max_tokens` from future config
+- keep rollout assignment and seat routing outside the policy layer
+
 ## Project layout
 
 | Path | Role |
