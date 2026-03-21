@@ -41,7 +41,27 @@ This plan assumes the following upstream handoffs from the other engineers:
 
 If any of those shared contracts change, Engineer 3 should update the training pipeline to match the agreed interface rather than creating parallel copies of engine or policy logic.
 
-## 3. Scope Of V1
+## 3. Current Project Status
+
+This plan should now be read with the following status updates in mind:
+
+- Engineer 1's scope from `ENGINEERING_TASKS.md` is complete, so the core deterministic environment, transition API, validation behavior, transcript recording, and terminal-state handling are available dependencies for Engineer 3.
+- Step 1 of this training plan is already complete through the first rollout implementation in `src/train/rollout.py`.
+- The current recommended next work for Engineer 3 starts at Step 2, which is to formalize the trajectory schema and enrich the rollout trace for later reward and GRPO use.
+
+Completed so far for Engineer 3:
+
+- deterministic single-game rollout execution
+- turn selection through `next_actor()`
+- structured per-step episode tracing
+- tests for deterministic rollout behavior
+
+This means the document below mixes:
+
+- completed foundation that should now be treated as established
+- next steps that still need implementation
+
+## 4. Scope Of V1
 
 V1 should optimize for a working and debuggable training loop, not maximal scale.
 
@@ -63,7 +83,7 @@ V1 should not depend on:
 - fancy memory systems
 - aggressive distributed training before local rollout correctness is proven
 
-## 4. High-Level Training Loop
+## 5. High-Level Training Loop
 
 ```mermaid
 flowchart TD
@@ -91,11 +111,11 @@ At a simple level, each training cycle does the following:
 6. run one GRPO update using the grouped relative scores
 7. save the checkpoint and run evaluation jobs
 
-## 5. Existing Interfaces The Trainer Must Use
+## 6. Existing Interfaces The Trainer Must Use
 
 The current training implementation should be built around the existing engine and policy boundaries, not around custom trainer-specific shortcuts.
 
-### 5.1 Engine entry points
+### 6.1 Engine entry points
 
 The trainer should rely on these engine functions:
 
@@ -105,7 +125,7 @@ The trainer should rely on these engine functions:
 - `apply_action(state, action)` to submit one action into the environment
 - `advance_phase(state)` to resolve phases that advance automatically
 
-### 5.2 Current observation contract
+### 6.2 Current observation contract
 
 An `Observation` already contains:
 
@@ -132,7 +152,7 @@ The important private fields already exposed are:
 - detective investigation results when applicable
 - doctor's last protection target when applicable
 
-### 5.3 Current action contract
+### 6.3 Current action contract
 
 The model and all baselines should emit the same `Action` schema:
 
@@ -151,7 +171,7 @@ Supported `action_type` values are:
 - `protect`
 - `investigate`
 
-### 5.4 Invalid action behavior
+### 6.4 Invalid action behavior
 
 The environment currently normalizes invalid actions to `noop`.
 
@@ -164,7 +184,7 @@ Every rollout log should therefore store:
 - the normalized action
 - validation error codes
 
-### 5.5 Coordination rules for Engineer 3
+### 6.5 Coordination rules for Engineer 3
 
 Engineer 3 should follow these coordination rules while implementing the training stack:
 
@@ -175,7 +195,7 @@ Engineer 3 should follow these coordination rules while implementing the trainin
 - only add training-side wrappers, logging, and evaluation glue where needed
 - record interface assumptions in docs or config, not in hidden trainer-only behavior
 
-## 6. Training Principles
+## 7. Training Principles
 
 The first version of the training system should follow these principles:
 
@@ -186,7 +206,7 @@ The first version of the training system should follow these principles:
 - role-aware metrics are mandatory because rewards differ by role
 - TruthfulQA is evaluation only and not part of the RL reward
 
-## 7. Incremental Implementation Strategy
+## 8. Incremental Implementation Strategy
 
 Build the system in small vertical slices. Do not try to build the full pipeline in one pass.
 
@@ -203,7 +223,7 @@ Recommended order:
 9. reward shaping expansion
 10. rollout scaling and stronger opponents
 
-## 8. Stage 0: Preparation And Project Layout
+## 9. Stage 0: Preparation And Project Layout
 
 Before writing trainer logic, set up the file layout so each responsibility has a clear home.
 
@@ -235,15 +255,19 @@ Small tasks:
 5. do not re-implement Engineer 2's opponent adapter inside `src/train/`
 6. keep any training-side rendering logic focused on trainable-policy prompting, not on replacing the shared observation contract
 
-## 9. Stage 1: Single Deterministic Local Rollout
+## 10. Stage 1: Single Deterministic Local Rollout
 
 The first real milestone is one complete game using one trainable seat and baseline opponents, all on a fixed seed.
 
-### 9.1 Goal
+Status: completed.
+
+The initial version of this milestone now exists in `src/train/rollout.py` and should be treated as the baseline rollout loop for future steps.
+
+### 10.1 Goal
 
 Produce a single local episode trace from reset to terminal state.
 
-### 9.2 Small tasks
+### 10.2 Small tasks
 
 1. create a `run_episode()` helper that accepts config, seed, trainable seat, and seat-to-policy mapping
 2. call `new_game(config, seed)`
@@ -255,7 +279,9 @@ Produce a single local episode trace from reset to terminal state.
 8. repeat until terminal state
 9. return the full final state plus a structured episode trace
 
-### 9.3 Actor selection rules
+The items above are now satisfied at a baseline level. Any future changes to this stage should be incremental improvements to the existing rollout implementation, not a rewrite of the milestone.
+
+### 10.3 Actor selection rules
 
 The rollout worker needs explicit logic for who acts next.
 
@@ -269,7 +295,7 @@ Small tasks:
 6. if phase is `day_announcement` or `resolution`, do not query a policy and call `advance_phase`
 7. stop when `state.is_terminal` is true
 
-### 9.4 First success criteria
+### 10.4 First success criteria
 
 This stage is complete when:
 
@@ -278,11 +304,13 @@ This stage is complete when:
 - invalid actions are visible in the trace
 - the same seed produces the same episode when scripted policies are deterministic
 
-## 10. Stage 2: Trajectory Data Model
+Next active step for Engineer 3: Stage 2.
+
+## 11. Stage 2: Trajectory Data Model
 
 Do not start GRPO math until the rollout data model is stable.
 
-### 10.1 Required records
+### 11.1 Required records
 
 Define separate records for:
 
@@ -334,15 +362,15 @@ Define separate records for:
 - `best_episode_id`
 - `worst_episode_id`
 
-### 10.2 Important rule
+### 11.2 Important rule
 
 Keep observations and actions in their structured form even if you also render them into text for the model. The text prompt is a view of the data, not the source of truth.
 
-## 11. Stage 3: Observation Rendering For Qwen
+## 12. Stage 3: Observation Rendering For Qwen With Pydantic AI
 
 The trainable model should not read raw Python objects. It needs a deterministic prompt format.
 
-### 11.1 Rendering goals
+### 12.1 Rendering goals
 
 The renderer should:
 
@@ -350,20 +378,23 @@ The renderer should:
 - preserve role-specific private information
 - preserve legal action constraints
 - remain stable across checkpoints so training data format does not drift
+- describe the typed structured result expected from Pydantic AI
 
 This renderer is a training-side component owned by Engineer 3. It should consume the shared `Observation` contract from Engineer 2 and the engine, not define a second observation format for the rest of the codebase.
 
-### 11.2 Rendering steps
+### 12.2 Rendering steps
 
 1. create a renderer that accepts `Observation`
 2. write sections in fixed order
 3. include phase, day, living players, and role information
 4. include a compact transcript summary
 5. include legal action choices explicitly
-6. state the required output schema
+6. define a Pydantic result model for the trainable policy response
+7. state the required structured output fields in the prompt
+8. use the Pydantic AI result type as the primary decoding path
 7. return the final prompt string used for generation
 
-### 11.3 Prompt structure
+### 12.3 Prompt structure
 
 Use a structured, repeated format like:
 
@@ -383,7 +414,9 @@ Output exactly one JSON object matching:
 {"action_type": "...", "target": ..., "intent": "...", "message": "..."}
 ```
 
-### 11.4 Transcript guidance
+In implementation, Pydantic AI should enforce this structure through a typed result model rather than relying on ad hoc JSON parsing in the primary path.
+
+### 12.4 Transcript guidance
 
 Start simple.
 
@@ -393,44 +426,45 @@ V1 transcript rendering should:
 - prefer templated summaries over full free-form chat
 - avoid long prompts that make debugging difficult
 
-## 12. Stage 4: Action Parsing And Validation
+## 13. Stage 4: Typed Action Adaptation And Engine Validation
 
-The parser sits between model output and the engine.
+The adapter sits between the typed model output and the engine.
 
-### 12.1 Parser responsibilities
+### 13.1 Parser responsibilities
 
 It should:
 
-- parse the model output into structured action fields
+- accept the typed structured result from Pydantic AI
 - attach the acting player id
 - coerce missing optional fields to `None`
-- reject malformed or partial JSON
+- convert the typed result into engine `Action`
 - pass the result into engine validation
+- log invalid but well-typed actions separately from model/schema failures
 
-### 12.2 Small tasks
+### 13.2 Small tasks
 
 1. define a Pydantic action-output model for the policy response
-2. parse model text into that model
-3. convert parsed output into engine `Action`
+2. accept that typed output from Pydantic AI
+3. convert typed output into engine `Action`
 4. run `validate_action`
 5. if invalid, keep the engine-normalized `noop`
-6. record the original raw text, parse error, and validation errors
+6. record model output metadata and validation errors
 
-### 12.3 Metrics to log
+### 13.3 Metrics to log
 
 Track at least:
 
-- parse failure rate
+- typed decode failure rate, if any fallback path exists
 - invalid action rate
 - noop normalization rate
 - invalid action rate by role
 - invalid action rate by phase
 
-## 13. Stage 5: Reward System
+## 14. Stage 5: Reward System
 
 The reward system should be implemented in phases. Do not begin with all shaping terms enabled.
 
-### 13.1 Reward philosophy
+### 14.1 Reward philosophy
 
 The main reward should remain terminal and faction-aware:
 
@@ -439,7 +473,7 @@ The main reward should remain terminal and faction-aware:
 
 This reward must be computed from the trainable agent's actual role in that episode. The trainer must never assume the policy is always mafia.
 
-### 13.2 Reward breakdown object
+### 14.2 Reward breakdown object
 
 Every episode should produce a named reward breakdown with fields such as:
 
@@ -453,7 +487,7 @@ Every episode should produce a named reward breakdown with fields such as:
 - `invalid_action_penalty`
 - `total_reward`
 
-### 13.3 Reward implementation phases
+### 14.3 Reward implementation phases
 
 #### Phase A: terminal only
 
@@ -501,13 +535,13 @@ Small tasks:
 
 Only after the above rewards are working should the trainer add small strategy bonuses for advanced mafia play, such as successful deception.
 
-## 14. Defining Successful Deception
+## 15. Defining Successful Deception
 
 This section exists to prevent reward hacking.
 
 The system should not give a mafia deception bonus just because the model said something deceptive. It should only reward deception when there is evidence that the deception contributed to strategic success.
 
-### 14.1 Required conditions
+### 15.1 Required conditions
 
 A deception bonus should require all of the following:
 
@@ -517,7 +551,7 @@ A deception bonus should require all of the following:
 4. the episode ended in a mafia win or a downstream event strongly consistent with successful deception
 5. the same event has not already been rewarded through another identical bonus
 
-### 14.2 Candidate deception bonuses
+### 15.2 Candidate deception bonuses
 
 Start with one small bonus only.
 
@@ -531,7 +565,7 @@ Possible later bonuses:
 - accusation that redirects a vote onto town and succeeds
 - defense that prevents elimination of the mafia speaker that day
 
-### 14.3 Example confirmation rules
+### 15.3 Example confirmation rules
 
 Examples of acceptable delayed confirmation rules:
 
@@ -539,7 +573,7 @@ Examples of acceptable delayed confirmation rules:
 - a redirect accusation earns a bonus only if the accused town player is eliminated that day
 - a defensive claim earns a bonus only if the speaker was at real risk and avoids elimination
 
-### 14.4 Constraints
+### 15.4 Constraints
 
 The deception bonus must:
 
@@ -548,11 +582,11 @@ The deception bonus must:
 - be logged separately
 - be easy to disable in config
 
-## 15. Stage 6: GRPO Batch Construction
+## 16. Stage 6: GRPO Batch Construction
 
 This is the first stage that introduces grouped RL logic.
 
-### 15.1 What GRPO means in this project
+### 16.1 What GRPO means in this project
 
 For this project, grouped rollouts mean:
 
@@ -561,7 +595,7 @@ For this project, grouped rollouts mean:
 - convert those relative outcomes into grouped learning signals
 - update the trainable model using the grouped comparison, not just a single absolute-reward episode
 
-### 15.2 Important clarification
+### 16.2 Important clarification
 
 Do not implement GRPO as "keep only the best game and ignore the rest."
 
@@ -574,7 +608,7 @@ Instead:
 - weaker episodes provide the contrast that tells the model what to do less often
 - the best episode is still stored separately for debugging and human review
 
-### 15.3 Small tasks
+### 16.3 Small tasks
 
 1. choose a group size `G`
 2. run `G` episodes with the same policy checkpoint and config slice
@@ -585,7 +619,7 @@ Instead:
 7. assemble the batch object needed by the GRPO trainer
 8. log raw and normalized rewards together
 
-### 15.4 Grouping constraints
+### 16.4 Grouping constraints
 
 For early versions, keep grouped episodes comparable by holding these constant inside a group:
 
@@ -596,11 +630,11 @@ For early versions, keep grouped episodes comparable by holding these constant i
 
 You may vary seeds and sampled roles inside a group, but the grouping metadata should record that clearly.
 
-## 16. Stage 7: Training Loop
+## 17. Stage 7: Training Loop
 
 Once grouped trajectories exist, wire the actual trainer.
 
-### 16.1 Trainer modules
+### 17.1 Trainer modules
 
 The trainer should have small, separable components:
 
@@ -615,7 +649,7 @@ The trainer should have small, separable components:
 - eval runner
 - metrics logger
 
-### 16.2 One training iteration
+### 17.2 One training iteration
 
 One training iteration should do the following:
 
@@ -630,7 +664,7 @@ One training iteration should do the following:
 9. evaluate if needed
 10. log summary metrics
 
-### 16.3 First trainer milestone
+### 17.3 First trainer milestone
 
 The first trainer milestone is not large-scale learning. It is:
 
@@ -640,7 +674,7 @@ The first trainer milestone is not large-scale learning. It is:
 - one eval pass
 - no crashes
 
-## 17. Uniform Role Sampling
+## 18. Uniform Role Sampling
 
 The training role distribution for v1 should be uniform.
 
@@ -653,7 +687,7 @@ That means each episode should sample from:
 
 Because there are two villager seats, the trainer should still treat `villager` as a role category for reporting, while recording the exact seat for trace reproducibility.
 
-### 17.1 Small tasks
+### 18.1 Small tasks
 
 1. implement a role sampler that chooses roles uniformly
 2. find a compatible seat for that role in the current game setup
@@ -661,15 +695,15 @@ Because there are two villager seats, the trainer should still treat `villager` 
 4. record both the role and seat in the episode metadata
 5. split metrics by role during training and evaluation
 
-### 17.2 Why this matters
+### 18.2 Why this matters
 
 Uniform role sampling avoids silently training only one style of play. It also forces the system to keep rewards and metrics role-aware from the beginning.
 
-## 18. Opponent Pool Plan
+## 19. Opponent Pool Plan
 
 Do not start with expensive or unstable opponents first.
 
-### 18.1 Opponent rollout stages
+### 19.1 Opponent rollout stages
 
 #### Stage 1 opponents
 
@@ -694,7 +728,7 @@ These should be:
 
 Engineer 3 should integrate against Engineer 2's opponent adapter interface here, not build provider-specific OpenRouter logic directly into trainer modules.
 
-### 18.2 Opponent pool requirements
+### 19.2 Opponent pool requirements
 
 Each episode should log:
 
@@ -703,15 +737,15 @@ Each episode should log:
 - opponent prompt version
 - whether outputs were cached
 
-### 18.3 Evaluation rule
+### 19.3 Evaluation rule
 
 Never compare checkpoints against a changing evaluation pool without recording the exact pool version. Otherwise win-rate trends become hard to trust.
 
-## 19. Checkpointing And Experiment Tracking
+## 20. Checkpointing And Experiment Tracking
 
 Every useful training run should be resumable and inspectable.
 
-### 19.1 Save at each checkpoint
+### 20.1 Save at each checkpoint
 
 - model weights
 - tokenizer or adapter config if needed
@@ -722,7 +756,7 @@ Every useful training run should be resumable and inspectable.
 - step counters
 - recent aggregate metrics
 
-### 19.2 Keep sample artifacts
+### 20.2 Keep sample artifacts
 
 At each evaluation interval, save:
 
@@ -734,11 +768,11 @@ At each evaluation interval, save:
 
 This makes it much easier to understand why learning is or is not working.
 
-## 20. Mafia Evaluation Harness
+## 21. Mafia Evaluation Harness
 
 Mafia evaluation should be separate from training updates.
 
-### 20.1 Core metrics
+### 21.1 Core metrics
 
 Track at least:
 
@@ -753,7 +787,7 @@ Track at least:
 - vote accuracy
 - average reward by component
 
-### 20.2 Evaluation tasks
+### 21.2 Evaluation tasks
 
 1. freeze evaluation seeds
 2. freeze evaluation opponents
@@ -762,7 +796,7 @@ Track at least:
 5. save transcript samples for qualitative review
 6. compare against prior checkpoints
 
-### 20.3 Minimum useful evaluation output
+### 21.3 Minimum useful evaluation output
 
 Each evaluation report should answer:
 
@@ -771,15 +805,15 @@ Each evaluation report should answer:
 - Is mafia strategy improving without breaking other roles?
 - Are reward changes reflected in actual outcomes?
 
-## 21. TruthfulQA Evaluation Track
+## 22. TruthfulQA Evaluation Track
 
 TruthfulQA is a separate regression test, not a training signal.
 
-### 21.1 Why include it
+### 22.1 Why include it
 
 Because the policy is being optimized for deceptive game play in a social deduction environment, it is useful to monitor whether Mafia skill gains coincide with changes in truthfulness behavior on a standard benchmark.
 
-### 21.2 V1 rules
+### 22.2 V1 rules
 
 - run TruthfulQA after each training run or checkpoint interval
 - keep the evaluation prompt format fixed across checkpoints
@@ -788,7 +822,7 @@ Because the policy is being optimized for deceptive game play in a social deduct
 - store Mafia metrics and TruthfulQA metrics side by side
 - never fold TruthfulQA into the reward function in v1
 
-### 21.3 TruthfulQA tasks
+### 22.3 TruthfulQA tasks
 
 1. create a smoke-test subset runner first
 2. verify model loading and prompt format
@@ -796,7 +830,7 @@ Because the policy is being optimized for deceptive game play in a social deduct
 4. run the same benchmark after each later checkpoint
 5. compare deltas over time
 
-### 21.4 Reporting guidance
+### 22.4 Reporting guidance
 
 At minimum, each run summary should show:
 
@@ -806,11 +840,11 @@ At minimum, each run summary should show:
 - TruthfulQA score
 - delta versus previous checkpoint
 
-## 22. `train.yaml` Design
+## 23. `train.yaml` Design
 
 The training configuration should live in one canonical file.
 
-### 22.1 Top-level sections
+### 23.1 Top-level sections
 
 Recommended sections:
 
@@ -824,7 +858,7 @@ Recommended sections:
 - `modal`
 - `evaluation`
 
-### 22.2 Key fields to include
+### 23.2 Key fields to include
 
 #### `project`
 
@@ -906,11 +940,11 @@ Recommended sections:
 - TruthfulQA split or subset
 - benchmark interval
 
-## 23. Logging Requirements
+## 24. Logging Requirements
 
 The system should log at three layers.
 
-### 23.1 Step-level logging
+### 24.1 Step-level logging
 
 Log for each trainable action:
 
@@ -922,7 +956,7 @@ Log for each trainable action:
 - logprob
 - current day and phase
 
-### 23.2 Episode-level logging
+### 24.2 Episode-level logging
 
 Log for each episode:
 
@@ -935,7 +969,7 @@ Log for each episode:
 - invalid action count
 - transcript reference
 
-### 23.3 Run-level logging
+### 24.3 Run-level logging
 
 Log for each training run:
 
@@ -947,24 +981,24 @@ Log for each training run:
 - per-role evaluation curves
 - TruthfulQA progression
 
-## 24. Testing And Sanity Checks
+## 25. Testing And Sanity Checks
 
 Do not trust training results unless the building blocks are tested first.
 
-### 24.1 Rollout tests
+### 25.1 Rollout tests
 
 1. test that one seeded episode reaches terminal
 2. test that the actor-selection logic matches phase rules
 3. test that `advance_phase` is called only in auto-resolve phases
 
-### 24.2 Parser tests
+### 25.2 Parser tests
 
 1. valid JSON becomes a legal `Action`
 2. malformed JSON is logged and normalized correctly
 3. illegal targets become invalid and fall back to `noop`
 4. missing required fields are handled cleanly
 
-### 24.3 Reward tests
+### 25.3 Reward tests
 
 1. terminal win and loss are correct by role
 2. survival shaping respects its cap
@@ -972,28 +1006,30 @@ Do not trust training results unless the building blocks are tested first.
 4. doctor save bonus fires only on real prevented kills
 5. deception bonus fires only when confirmation rules are met
 
-### 24.4 GRPO tests
+### 25.4 GRPO tests
 
 1. grouped reward normalization ranks episodes correctly
 2. the best episode is recorded but not used alone
 3. the batch builder keeps metadata for every episode
 4. grouped scores are reproducible from saved inputs
 
-### 24.5 Checkpoint and eval tests
+### 25.5 Checkpoint and eval tests
 
 1. checkpoint save and load roundtrip
 2. Mafia evaluation smoke run
 3. TruthfulQA small-subset smoke run
 
-## 25. Recommended Build Order
+## 26. Recommended Build Order
 
 Use this exact implementation order unless a dependency forces a change.
 
 ### Step 1
 
-Implement deterministic single-game rollouts with scripted policies.
+Completed: deterministic single-game rollouts with scripted policies.
 
 ### Step 2
+
+Current next step.
 
 Add the trajectory schema and full episode trace logging.
 
@@ -1033,12 +1069,18 @@ Add carefully defined mafia deception bonuses.
 
 Scale rollout throughput and introduce stronger frozen opponents.
 
-## 26. Engineer 3 Dependency Checklist
+## 27. Engineer 3 Dependency Checklist
 
-Before implementing each major milestone, Engineer 3 should verify these dependencies are available:
+Before implementing each major milestone, Engineer 3 should verify these dependencies are available.
 
-- Engineer 1 has merged the stable engine transition and terminal-state APIs
-- Engineer 1 has finalized transcript and validation logging behavior
+Current status:
+
+- Engineer 1 dependency is satisfied.
+- Step 1 rollout dependency is satisfied.
+- The main remaining external dependency for near-term work is Engineer 2's policy-layer and opponent-layer surface area.
+
+- Engineer 1 has merged the stable engine transition and terminal-state APIs. Completed.
+- Engineer 1 has finalized transcript and validation logging behavior. Completed.
 - Engineer 2 has finalized `Policy.act(observation) -> Action`
 - Engineer 2 has provided scripted baseline policies for local rollout tests
 - Engineer 2 has frozen the shared observation shape and legal-action contract
@@ -1046,7 +1088,7 @@ Before implementing each major milestone, Engineer 3 should verify these depende
 
 If a dependency is missing, Engineer 3 should stub only the minimum boundary needed for local testing and then replace it with the shared implementation once available.
 
-## 27. Risks And Failure Modes
+## 28. Risks And Failure Modes
 
 The main risks for this project are:
 
@@ -1058,7 +1100,7 @@ The main risks for this project are:
 - long prompts making training expensive and unstable
 - Mafia reward gains moving independently from TruthfulQA results
 
-## 28. Minimum V1 Success Bar
+## 29. Minimum V1 Success Bar
 
 V1 is successful if all of the following are true:
 
