@@ -23,7 +23,7 @@ Deliverables:
 Suggested first milestones:
 
 1. Define `GameState`, `Action`, and `Phase` types.
-2. Implement the 6-player fixed-role flow.
+2. Implement the 5-player fixed-role flow.
 3. Add deterministic tests under `tests/game/`.
 
 ## Engineer 2: Policy, Observation, and Opponent Layer
@@ -41,7 +41,7 @@ Suggested first milestones:
 
 1. Define `Policy.act(observation) -> Action`.
 2. Build observation serialization from `GameState`.
-3. Add a simple scripted baseline for all town roles.
+3. Add a simple scripted baseline for all supported roles and mixed-role training rollouts.
 
 ## Engineer 3: Training, Evaluation, and Configuration
 Own experiment orchestration and reproducibility.
@@ -53,12 +53,13 @@ Deliverables:
 - `src/eval/` harness for benchmark runs and opponent-pool evaluation
 - Modal entrypoints and job packaging
 - tests for config parsing and basic rollout execution
+- role-conditioned training support so the trainable policy can occupy any supported seat per episode
 
 Suggested first milestones:
 
 1. Define config schema and defaults.
 2. Wire one local rollout using the policy interface.
-3. Add evaluation outputs for win rate and episode summaries.
+3. Add evaluation outputs for win rate, role-conditioned reward summaries, and episode summaries.
 
 ## Coordination Rules
 - Freeze shared types before implementation starts.

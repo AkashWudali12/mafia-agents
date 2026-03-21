@@ -7,7 +7,7 @@ This repository now freezes the initial interfaces needed for parallel work acro
 - `src/contracts.py` is the single source of truth for `Action`, `Observation`, `EnvironmentConfig`, transcript records, and validation results.
 - `Action` is the only action schema used across engine, policies, training, and evaluation.
 - `Observation` always contains `public_state`, `private_state`, and `legal_actions`.
-- `EnvironmentConfig` captures the foundational v1 rule toggles and defaults to the fixed six-player role mix from the PRD.
+- `EnvironmentConfig` captures the foundational v1 rule toggles and defaults to the fixed five-player role mix from the PRD.
 
 ## Engine Boundary
 

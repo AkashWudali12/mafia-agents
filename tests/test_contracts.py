@@ -18,12 +18,11 @@ def test_environment_config_serializes_fixed_v1_defaults() -> None:
     config = EnvironmentConfig()
     dumped = config.model_dump()
 
-    assert dumped["num_players"] == 6
+    assert dumped["num_players"] == 5
     assert dumped["roles"] == (
         Role.MAFIA,
         Role.DOCTOR,
         Role.DETECTIVE,
-        Role.VILLAGER,
         Role.VILLAGER,
         Role.VILLAGER,
     )
@@ -32,19 +31,19 @@ def test_environment_config_serializes_fixed_v1_defaults() -> None:
 
 def test_environment_config_rejects_non_v1_role_mix() -> None:
     with pytest.raises(ValidationError):
-        EnvironmentConfig(roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER))
+        EnvironmentConfig(roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER))
 
 
 def test_observation_includes_legal_actions() -> None:
     observation = Observation(
         actor=0,
-        public_state=PublicObservationState(day=1, phase=Phase.NIGHT_MAFIA, living_players=(0, 1, 2, 3, 4, 5)),
+        public_state=PublicObservationState(day=1, phase=Phase.NIGHT_MAFIA, living_players=(0, 1, 2, 3, 4)),
         private_state=PrivateObservationState(own_role=Role.MAFIA),
-        legal_actions=(LegalActionSpec(action_type=ActionType.NIGHT_KILL, legal_targets=(1, 2, 3, 4, 5)),),
+        legal_actions=(LegalActionSpec(action_type=ActionType.NIGHT_KILL, legal_targets=(1, 2, 3, 4)),),
     )
 
     assert observation.legal_actions[0].action_type == ActionType.NIGHT_KILL
-    assert observation.legal_actions[0].legal_targets == (1, 2, 3, 4, 5)
+    assert observation.legal_actions[0].legal_targets == (1, 2, 3, 4)
 
 
 def test_action_requires_explicit_type() -> None:
