@@ -30,14 +30,14 @@ Engineer 3 does not own the primary implementation of:
 
 - core game-state transitions and phase resolution in `src/game/`
 - action schema changes or validation semantics in `src/contracts.py` and `src/game/engine.py`
-- the policy interface contract in `src/policies/base.py`
+- the policy interface contract in `src/policies/interfaces.py`
 - the main observation builder and legal-action exposure used by all agents
 - the OpenRouter-backed opponent adapter itself
 
 This plan assumes the following upstream handoffs from the other engineers:
 
 - Engineer 1 provides the deterministic game engine, terminal logic, transcript recording, and validation behavior
-- Engineer 2 provides the stable `Policy.act(observation) -> Action` contract, observation serialization, scripted baselines, and the opponent adapter boundary
+- Engineer 2 provides the stable `Policy.act(observation) -> Action` contract, observation serialization, scripted baselines, shared rendering/parsing helpers, and the opponent adapter boundary
 
 If any of those shared contracts change, Engineer 3 should update the training pipeline to match the agreed interface rather than creating parallel copies of engine or policy logic.
 
@@ -46,6 +46,7 @@ If any of those shared contracts change, Engineer 3 should update the training p
 This plan should now be read with the following status updates in mind:
 
 - Engineer 1's scope from `ENGINEERING_TASKS.md` is complete, so the core deterministic environment, transition API, validation behavior, transcript recording, and terminal-state handling are available dependencies for Engineer 3.
+- Engineer 2's core policy-layer scope is now available in `src/policies/`, including the shared policy interface, scripted baselines, rendering/parsing helpers, and OpenRouter-backed model policy/client wiring.
 - Step 1 of this training plan is already complete through the first rollout implementation in `src/train/rollout.py`.
 - The current recommended next work for Engineer 3 starts at Step 2, which is to formalize the trajectory schema and enrich the rollout trace for later reward and GRPO use.
 
@@ -61,6 +62,16 @@ This means the document below mixes:
 - completed foundation that should now be treated as established
 - next steps that still need implementation
 
+Shared policy-layer modules now available from Engineer 2:
+
+- `src/policies/interfaces.py` for the stable `Policy` contract
+- `src/policies/scripted.py` for scripted mafia, doctor, detective, and villager baselines
+- `src/policies/rendering.py` for shared observation and model prompt rendering
+- `src/policies/parsing.py` for shared action payload parsing and observation-aware normalization
+- `src/policies/openrouter_policy.py` for the model-backed policy wrapper
+- `src/policies/openrouter_client.py` for the Pydantic AI OpenRouter client
+- `src/policies/schemas.py` for the shared typed model payload schema
+
 ## 4. Scope Of V1
 
 V1 should optimize for a working and debuggable training loop, not maximal scale.
@@ -70,6 +81,7 @@ The initial scope is:
 - one trainable policy
 - fixed 5-player Mafia environment
 - one game engine as the source of truth for legality and transitions
+- Hugging Face as the access path for the trainable model and its checkpoints
 - structured observations and structured action JSON
 - uniform role sampling across `mafia`, `doctor`, `detective`, and `villager`
 - GRPO updates computed from grouped games
@@ -114,6 +126,11 @@ At a simple level, each training cycle does the following:
 ## 6. Existing Interfaces The Trainer Must Use
 
 The current training implementation should be built around the existing engine and policy boundaries, not around custom trainer-specific shortcuts.
+
+Important provider split for V1:
+
+- the trainable model should be loaded, updated, and checkpointed through Hugging Face tooling
+- OpenRouter integration is for frozen opponent policies and evaluation-side model access only unless this document explicitly says otherwise
 
 ### 6.1 Engine entry points
 
@@ -190,8 +207,10 @@ Engineer 3 should follow these coordination rules while implementing the trainin
 
 - code only against frozen shared interfaces
 - treat engine functions as dependencies, not as code to rewrite
-- treat the policy adapter and opponent adapter as dependencies, not as code to replace
+- treat the policy adapter, shared prompt/parsing helpers, and opponent adapter as dependencies, not as code to replace
+- use Hugging Face model loading and checkpoint interfaces for the trainable policy path
 - use scripted baselines from Engineer 2 for the first local rollout milestone
+- prefer wrapping `src/policies/` helpers over duplicating prompt/parsing logic in `src/train/`
 - only add training-side wrappers, logging, and evaluation glue where needed
 - record interface assumptions in docs or config, not in hidden trainer-only behavior
 
@@ -253,7 +272,7 @@ Small tasks:
 3. keep training code separate from engine code
 4. do not change engine contracts unless absolutely necessary
 5. do not re-implement Engineer 2's opponent adapter inside `src/train/`
-6. keep any training-side rendering logic focused on trainable-policy prompting, not on replacing the shared observation contract
+6. prefer consuming shared policy-layer rendering/parsing helpers before adding new training-specific copies
 
 ## 10. Stage 1: Single Deterministic Local Rollout
 
@@ -380,11 +399,12 @@ The renderer should:
 - remain stable across checkpoints so training data format does not drift
 - describe the typed structured result expected from Pydantic AI
 
-This renderer is a training-side component owned by Engineer 3. It should consume the shared `Observation` contract from Engineer 2 and the engine, not define a second observation format for the rest of the codebase.
+Engineer 2 has now landed shared policy-layer implementations in `src/policies/rendering.py`, `src/policies/schemas.py`, and `src/policies/openrouter_client.py`. Engineer 3 should treat those as the default integration surface and only add training-specific wrappers where logging or experiment control requires it.
 
 ### 12.2 Rendering steps
 
 1. create a renderer that accepts `Observation`
+   Preferred path: reuse `src/policies/rendering.py` rather than defining a second prompt format in `src/train/`.
 2. write sections in fixed order
 3. include phase, day, living players, and role information
 4. include a compact transcript summary
@@ -392,7 +412,7 @@ This renderer is a training-side component owned by Engineer 3. It should consum
 6. define a Pydantic result model for the trainable policy response
 7. state the required structured output fields in the prompt
 8. use the Pydantic AI result type as the primary decoding path
-7. return the final prompt string used for generation
+9. return the final prompt string used for generation
 
 ### 12.3 Prompt structure
 
@@ -441,12 +461,14 @@ It should:
 - pass the result into engine validation
 - log invalid but well-typed actions separately from model/schema failures
 
+Engineer 2 has already landed shared parsing and normalization helpers in `src/policies/parsing.py`. Engineer 3 should prefer integrating those helpers, or extending them with training metadata, rather than building a separate legality pipeline unless training-specific trace requirements make that necessary.
+
 ### 13.2 Small tasks
 
 1. define a Pydantic action-output model for the policy response
 2. accept that typed output from Pydantic AI
-3. convert typed output into engine `Action`
-4. run `validate_action`
+3. convert typed output into engine `Action` using the shared payload schema if possible
+4. normalize and validate against the observation or engine state
 5. if invalid, keep the engine-normalized `noop`
 6. record model output metadata and validation errors
 
@@ -714,7 +736,7 @@ Use deterministic or near-deterministic scripted baselines for:
 - parser debugging
 - deterministic tests
 
-These scripted baselines should come from Engineer 2's policy layer so Engineer 3 can validate the training loop without taking ownership of baseline policy behavior.
+These scripted baselines now exist in `src/policies/scripted.py` and should be used directly so Engineer 3 can validate the training loop without taking ownership of baseline policy behavior.
 
 #### Stage 2 opponents
 
@@ -726,7 +748,7 @@ These should be:
 - isolated from training updates
 - used consistently inside evaluation runs
 
-Engineer 3 should integrate against Engineer 2's opponent adapter interface here, not build provider-specific OpenRouter logic directly into trainer modules.
+Engineer 3 should integrate against Engineer 2's `OpenRouterPolicy` and `PydanticAiOpenRouterClient` surfaces here, not build provider-specific OpenRouter logic directly into trainer modules.
 
 ### 19.2 Opponent pool requirements
 
@@ -1076,15 +1098,17 @@ Before implementing each major milestone, Engineer 3 should verify these depende
 Current status:
 
 - Engineer 1 dependency is satisfied.
+- Engineer 2 shared policy-layer dependency is largely satisfied.
 - Step 1 rollout dependency is satisfied.
-- The main remaining external dependency for near-term work is Engineer 2's policy-layer and opponent-layer surface area.
+- The main remaining external dependency for near-term work is any final stabilization of Engineer 2's policy-layer APIs, not their initial availability.
 
 - Engineer 1 has merged the stable engine transition and terminal-state APIs. Completed.
 - Engineer 1 has finalized transcript and validation logging behavior. Completed.
-- Engineer 2 has finalized `Policy.act(observation) -> Action`
-- Engineer 2 has provided scripted baseline policies for local rollout tests
-- Engineer 2 has frozen the shared observation shape and legal-action contract
-- Engineer 2 has exposed a stable opponent adapter boundary for model-backed seats
+- Engineer 2 has finalized `Policy.act(observation) -> Action`. Available in `src/policies/interfaces.py`.
+- Engineer 2 has provided scripted baseline policies for local rollout tests. Available in `src/policies/scripted.py`.
+- Engineer 2 has frozen the shared observation shape and legal-action contract. Available through the shared engine and policy-layer utilities.
+- Engineer 2 has exposed a stable opponent adapter boundary for model-backed seats. Available in `src/policies/openrouter_policy.py` and `src/policies/openrouter_client.py`.
+- Engineer 2 has exposed shared prompt rendering, payload schema, and parsing helpers. Available in `src/policies/rendering.py`, `src/policies/schemas.py`, and `src/policies/parsing.py`.
 
 If a dependency is missing, Engineer 3 should stub only the minimum boundary needed for local testing and then replace it with the shared implementation once available.
 

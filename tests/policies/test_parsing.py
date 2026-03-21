@@ -1,5 +1,6 @@
 from contracts import Action, ActionType, DiscussionIntent, LegalActionSpec, Observation, Phase, PrivateObservationState, PublicObservationState, Role
-from policies.parsing import normalize_action_for_observation, parse_action_payload
+from game import new_game
+from policies.parsing import normalize_action_for_observation, parse_action_payload, validate_action_for_observation
 
 
 def _observation(*legal_actions: LegalActionSpec) -> Observation:
@@ -69,3 +70,61 @@ def test_normalize_action_for_observation_rejects_illegal_target_and_intent() ->
 
     assert normalized.actor == 4
     assert normalized.action_type == ActionType.NOOP
+
+
+def test_validate_action_for_observation_reuses_engine_validation_with_policy_normalization() -> None:
+    state = new_game()
+    observation = Observation(
+        actor=0,
+        public_state=PublicObservationState(
+            day=state.day,
+            phase=state.phase,
+            living_players=state.living_players,
+            current_speaker=None,
+            discussion_round_index=None,
+            transcript=state.transcript,
+            vote_history=state.vote_history,
+            elimination_history=state.elimination_history,
+            last_night_outcome=state.last_night_outcome,
+        ),
+        private_state=PrivateObservationState(own_role=Role.MAFIA),
+        legal_actions=(LegalActionSpec(action_type=ActionType.NIGHT_KILL, legal_targets=(1, 2, 3, 4)),),
+    )
+
+    validation = validate_action_for_observation(
+        Action(actor=99, action_type=ActionType.NIGHT_KILL, target=3),
+        observation,
+        state,
+    )
+
+    assert validation.is_valid is True
+    assert validation.normalized_action.actor == 0
+
+
+def test_validate_action_for_observation_keeps_illegal_target_invalid() -> None:
+    state = new_game()
+    observation = Observation(
+        actor=0,
+        public_state=PublicObservationState(
+            day=state.day,
+            phase=state.phase,
+            living_players=state.living_players,
+            current_speaker=None,
+            discussion_round_index=None,
+            transcript=state.transcript,
+            vote_history=state.vote_history,
+            elimination_history=state.elimination_history,
+            last_night_outcome=state.last_night_outcome,
+        ),
+        private_state=PrivateObservationState(own_role=Role.MAFIA),
+        legal_actions=(LegalActionSpec(action_type=ActionType.NIGHT_KILL, legal_targets=(1, 2, 3, 4)),),
+    )
+
+    validation = validate_action_for_observation(
+        Action(actor=0, action_type=ActionType.NIGHT_KILL, target=0),
+        observation,
+        state,
+    )
+
+    assert validation.is_valid is False
+    assert validation.normalized_action.action_type == ActionType.NOOP

@@ -1,0 +1,92 @@
+project:
+  experiment_name: mafia-local-debug
+  seed: 123
+  run_notes: Local Hugging Face debug training on a small instruct model.
+
+environment:
+  num_players: 5
+  roles:
+    - mafia
+    - doctor
+    - detective
+    - villager
+    - villager
+  discussion_rounds: 2
+  max_days: 10
+  doctor_can_self_protect: true
+  doctor_can_repeat_target: true
+  detective_returns_alignment_only: true
+  reveal_roles_on_death: true
+  tie_break_rule: lowest_id
+  invalid_action_behavior: noop
+
+model:
+  provider: huggingface
+  trainable_model_name: HuggingFaceTB/SmolLM2-1.7B-Instruct
+  tokenizer_name: HuggingFaceTB/SmolLM2-1.7B-Instruct
+  cache_dir: .cache/huggingface
+  max_context_length: 4096
+  output_format_mode: typed_json
+  device: null
+  max_new_tokens: 96
+  temperature: 0.0
+
+opponents:
+  opponent_provider: scripted
+  opponent_pool_id: scripted_v1
+  model_names: []
+  sampling_strategy: fixed
+  cache_behavior: disabled
+  prompt_version: v1
+
+training:
+  algorithm_name: grpo
+  learning_rate: 0.00001
+  batch_size: 1
+  episodes_per_batch: 4
+  grpo_group_size: 4
+  gradient_accumulation: 1
+  total_updates: 1
+  checkpoint_interval: 1
+  evaluation_interval: 1
+
+rewards:
+  terminal_win_value: 1.0
+  terminal_loss_value: -1.0
+  survival_bonus_per_day: 0.04
+  survival_bonus_cap: 0.2
+  vote_correct_bonus: 0.03
+  vote_incorrect_penalty: -0.03
+  vote_bonus_cap: 0.12
+  mafia_kill_bonus: 0.05
+  mafia_kill_cap: 0.2
+  detective_hit_bonus: 0.06
+  detective_confirm_bonus: 0.03
+  doctor_save_bonus: 0.05
+  doctor_save_cap: 0.15
+  deception:
+    enabled: true
+    false_detective_claim_bonus: 0.05
+  invalid_action_penalty: 0.0
+
+logging:
+  backend: jsonl
+  level: DEBUG
+  log_dir_name: logs
+  transcript_retention: summary
+  observation_snapshot_retention: trainable_only
+  action_trace_retention: full
+
+modal:
+  app_name: mafia-train
+  gpu_type: none
+  cpu_count: 4
+  memory_gb: 8
+  timeout_seconds: 7200
+  checkpoint_location: checkpoints/modal
+
+evaluation:
+  mafia_eval_seeds: [101, 202, 303, 404]
+  episodes_per_role: 1
+  truthfulqa_subset: smoke
+  benchmark_interval: 1

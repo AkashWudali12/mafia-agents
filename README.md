@@ -55,14 +55,70 @@ Required environment:
 
 - `OPENROUTER_API_KEY`: OpenRouter API key
 - `RUN_OPENROUTER_LIVE_TESTS=1`: explicit opt-in to run the live networked proof
-- `OPENROUTER_MODEL`: optional override for the live proof model id
-  - default: `openai/gpt-4.1-mini`
 
 Run only the live proof:
 
 ```bash
 RUN_OPENROUTER_LIVE_TESTS=1 OPENROUTER_API_KEY=... uv run pytest tests/integration/test_openrouter_live.py
 ```
+
+## Local training
+
+The local trainable-model path uses Hugging Face and PyTorch, with a Mac-friendly default model:
+
+- `HuggingFaceTB/SmolLM2-1.7B-Instruct`
+
+The current default model is public on Hugging Face, so the current implementation does not require an `HF_TOKEN`.
+Model files are downloaded and cached locally under `.cache/huggingface/` by default.
+
+Sync dependencies first:
+
+```bash
+uv sync --group dev
+```
+
+Then run one local training job:
+
+```bash
+python scripts/train_local.py --config train.yaml --checkpoint-root checkpoints/local
+```
+
+This will:
+
+- load `train.yaml`
+- instantiate the local Hugging Face trainable policy
+- run grouped rollouts
+- apply a PyTorch optimizer step
+- save a checkpoint under `checkpoints/local`
+- write detailed debug logs under `checkpoints/local/logs/`
+
+The debug log files are:
+
+- `training.log`: readable timestamped debug log
+- `events.jsonl`: structured JSONL event stream for step-by-step debugging
+
+Environment you may need:
+
+- no `HF_TOKEN` is required for the current default public model
+- `HF_TOKEN` only if you later switch to a gated/private Hugging Face model
+- `OPENROUTER_API_KEY` only if you later switch opponents to OpenRouter-backed policies
+
+## Modal training
+
+For remote runs on Modal:
+
+```bash
+modal run scripts/train_modal.py
+```
+
+Expected credentials:
+
+- `MODAL_TOKEN_ID`
+- `MODAL_TOKEN_SECRET`
+- `HF_TOKEN` if the selected Hugging Face model requires authentication
+- `OPENROUTER_API_KEY` only if your opponent setup uses OpenRouter
+
+The Modal script forwards `HF_TOKEN` and `OPENROUTER_API_KEY` from your local environment into the remote run. For production use, replace that with a Modal Secret workflow.
 
 Engineer 3 handoff:
 

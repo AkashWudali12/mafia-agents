@@ -30,7 +30,7 @@ def test_openrouter_live_model_can_return_a_validated_action() -> None:
     client = PydanticAiOpenRouterClient()
     policy = OpenRouterPolicy(
         client=client,
-        model=os.getenv("OPENROUTER_MODEL", "openai/gpt-4.1-mini"),
+        model="openai/gpt-4.1-mini",
         temperature=0.0,
         max_tokens=128,
         max_transcript_events=4,

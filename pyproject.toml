@@ -7,6 +7,9 @@ requires-python = ">=3.13"
 dependencies = [
   "pydantic>=2.11,<3.0",
   "pydantic-ai-slim[openrouter]",
+  "PyYAML>=6.0,<7.0",
+  "torch>=2.6,<3.0",
+  "transformers>=4.51,<5.0",
 ]
 
 [dependency-groups]
@@ -19,7 +22,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/game", "src/policies", "src/train"]
+packages = ["src/eval", "src/game", "src/policies", "src/train"]
 include = ["src/contracts.py"]
 
 [tool.pytest.ini_options]

@@ -40,3 +40,6 @@ Thumbs.db
 
 # Editors (optional local settings; remove if you prefer committing these)
 .idea/
+
+checkpoints/
+.cache/

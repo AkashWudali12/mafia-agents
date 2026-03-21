@@ -40,6 +40,7 @@ class RolloutStep(FrozenModel):
     model_prompt: str | None = None
     raw_model_output: str | None = None
     logprob: float | None = None
+    group_normalized_score: float | None = None
     next_day: int
     next_phase: Phase
 
@@ -53,6 +54,9 @@ class EpisodeMetadata(FrozenModel):
     trainable_role: Role
     trainable_alignment: Alignment
     opponent_pool_id: str | None = None
+    opponent_model_names: tuple[str, ...] = ()
+    opponent_prompt_version: str | None = None
+    opponent_cache_behavior: str | None = None
     environment_config_hash: str
 
 

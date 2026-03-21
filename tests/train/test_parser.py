@@ -1,14 +1,16 @@
 from contracts import ActionType, ValidationErrorCode
-from game import new_game
+from game import build_observation, new_game
 from train import ActionOutput, adapt_action_output, malformed_action_result
 
 
 def test_adapt_action_output_accepts_valid_typed_action() -> None:
     state = new_game()
+    observation = build_observation(state, 0)
 
     result = adapt_action_output(
         actor=0,
         output=ActionOutput(action_type=ActionType.NIGHT_KILL, target=3),
+        observation=observation,
         state=state,
     )
 
@@ -36,10 +38,12 @@ def test_malformed_action_result_marks_schema_failure() -> None:
 
 def test_adapt_action_output_normalizes_illegal_but_well_typed_action() -> None:
     state = new_game()
+    observation = build_observation(state, 0)
 
     result = adapt_action_output(
         actor=0,
         output=ActionOutput(action_type=ActionType.NIGHT_KILL, target=0),
+        observation=observation,
         state=state,
     )
 

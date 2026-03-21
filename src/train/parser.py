@@ -2,19 +2,17 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from contracts import Action, ActionType, DiscussionIntent, ValidationErrorCode, noop_action
-from game import GameState, validate_action
+from contracts import Action, Observation, ValidationErrorCode, noop_action
+from game import GameState
+from policies.parsing import validate_action_for_observation
+from policies.schemas import ModelActionPayload
 
 
 class FrozenModel(BaseModel):
     model_config = ConfigDict(frozen=True, use_enum_values=False)
 
 
-class ActionOutput(FrozenModel):
-    action_type: ActionType
-    target: int | None = None
-    intent: DiscussionIntent | None = None
-    message: str | None = None
+ActionOutput = ModelActionPayload
 
 
 class ParsedActionResult(FrozenModel):
@@ -31,6 +29,7 @@ def adapt_action_output(
     *,
     actor: int,
     output: ActionOutput,
+    observation: Observation,
     state: GameState,
     raw_output: str | None = None,
 ) -> ParsedActionResult:
@@ -41,7 +40,7 @@ def adapt_action_output(
         intent=output.intent,
         message=output.message,
     )
-    validation = validate_action(state, submitted_action)
+    validation = validate_action_for_observation(submitted_action, observation, state)
     return ParsedActionResult(
         actor=actor,
         raw_output=raw_output,

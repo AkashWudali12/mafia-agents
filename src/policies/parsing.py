@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from contracts import Action, ActionType, DiscussionIntent, Observation, noop_action
+from contracts import Action, ActionType, DiscussionIntent, Observation, ValidationResult, noop_action
+from game import GameState, validate_action
 
 
 def parse_action_payload(payload: str | dict[str, Any], actor: int) -> Action:
@@ -41,3 +42,12 @@ def normalize_action_for_observation(action: Action, observation: Observation) -
             return normalized.model_copy(update={"message": None})
         return normalized
     return noop_action(observation.actor)
+
+
+def validate_action_for_observation(action: Action, observation: Observation, state: GameState) -> ValidationResult:
+    validation = validate_action(state, action.model_copy(update={"actor": observation.actor}))
+    return ValidationResult(
+        is_valid=validation.is_valid,
+        normalized_action=normalize_action_for_observation(validation.normalized_action, observation),
+        errors=validation.errors,
+    )
