@@ -37,7 +37,9 @@ def render_model_prompt(observation: Observation, max_transcript_events: int | N
             "Return exactly one JSON object and no extra text.",
             "Your JSON must follow this schema and only choose from legal_actions.",
             str(schema),
-            "If you choose speak, keep the message short and strategic.",
+            'If you choose speak, you must include a plain-English message addressed to the other players.',
+            'Example speak output: {"action_type":"speak","target":2,"intent":"accuse","message":"Player 2 is dodging the vote discussion. We should pressure them."}',
+            "Do not repeat the schema, legal_actions, or transcript in your answer.",
             "If a field is not needed, use null or omit it.",
             "Observation:",
         ]

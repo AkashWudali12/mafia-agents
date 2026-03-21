@@ -34,7 +34,7 @@ def test_scripted_villager_speaks_with_legal_target_and_intent() -> None:
     assert action.action_type == ActionType.SPEAK
     assert action.target == 0
     assert action.intent == DiscussionIntent.ACCUSE
-    assert action.message == "sharing suspicion"
+    assert action.message == "Player 0 looks suspicious to me. We should pressure them."
 
 
 def test_scripted_villager_votes_for_lowest_non_self_target() -> None:

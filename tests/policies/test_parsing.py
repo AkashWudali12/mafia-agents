@@ -72,6 +72,25 @@ def test_normalize_action_for_observation_rejects_illegal_target_and_intent() ->
     assert normalized.action_type == ActionType.NOOP
 
 
+def test_normalize_action_for_observation_fills_missing_speak_message() -> None:
+    observation = _observation(
+        LegalActionSpec(
+            action_type=ActionType.SPEAK,
+            legal_targets=(0, 1, 2, 3),
+            legal_intents=(DiscussionIntent.ACCUSE, DiscussionIntent.DEFEND),
+            allow_message=True,
+        )
+    )
+
+    normalized = normalize_action_for_observation(
+        Action(actor=4, action_type=ActionType.SPEAK, target=1, intent=DiscussionIntent.ACCUSE, message=""),
+        observation,
+    )
+
+    assert normalized.action_type == ActionType.SPEAK
+    assert normalized.message == "Player 1 is my strongest suspicion right now."
+
+
 def test_validate_action_for_observation_reuses_engine_validation_with_policy_normalization() -> None:
     state = new_game()
     observation = Observation(

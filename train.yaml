@@ -32,10 +32,13 @@ model:
   temperature: 0.0
 
 opponents:
-  opponent_provider: scripted
-  opponent_pool_id: scripted_v1
-  model_names: []
-  sampling_strategy: fixed
+  opponent_provider: openrouter
+  opponent_pool_id: openrouter_pool_v1
+  model_names:
+    - openai/gpt-4.1-mini
+    - anthropic/claude-3.5-haiku
+    - google/gemini-2.0-flash-lite-001
+  sampling_strategy: random_per_seat
   cache_behavior: disabled
   prompt_version: v1
 

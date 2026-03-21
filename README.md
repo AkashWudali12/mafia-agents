@@ -101,7 +101,7 @@ Environment you may need:
 
 - no `HF_TOKEN` is required for the current default public model
 - `HF_TOKEN` only if you later switch to a gated/private Hugging Face model
-- `OPENROUTER_API_KEY` only if you later switch opponents to OpenRouter-backed policies
+- `OPENROUTER_API_KEY` is required for training because opponent seats are sampled from the OpenRouter model pool in `train.yaml`
 
 ## Modal training
 

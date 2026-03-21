@@ -5,6 +5,15 @@ from train.config import EvaluationConfig, ModelConfig, OpponentConfig, ProjectC
 from train.logging import close_training_logger, configure_training_logger
 
 
+class StubOpenRouterClient:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def complete(self, *, prompt: str, model: str, temperature: float, max_tokens: int):
+        self.calls.append(model)
+        return {"action_type": "noop"}
+
+
 def test_debug_trainer_runs_one_iteration_and_saves_checkpoint(tmp_path) -> None:
     class RecordingPolicy(FirstLegalPolicy):
         def save_pretrained(self, output_dir) -> None:
@@ -18,6 +27,7 @@ def test_debug_trainer_runs_one_iteration_and_saves_checkpoint(tmp_path) -> None
         config=_config(),
         trainable_policy=RecordingPolicy(),
         checkpoint_root=tmp_path,
+        opponent_client=StubOpenRouterClient(),
     )
 
     result = trainer.run_iteration(seed=7)
@@ -34,7 +44,11 @@ def test_debug_trainer_runs_one_iteration_and_saves_checkpoint(tmp_path) -> None
 def test_role_sampler_covers_role_categories_uniformly() -> None:
     config = EnvironmentConfig()
     trainer_config = _config(environment=config)
-    trainer = DebugTrainer(config=trainer_config, trainable_policy=FirstLegalPolicy())
+    trainer = DebugTrainer(
+        config=trainer_config,
+        trainable_policy=FirstLegalPolicy(),
+        opponent_client=StubOpenRouterClient(),
+    )
 
     roles = [episode.metadata.trainable_role for episode in trainer.run_iteration(seed=9).grouped_batch.episodes]
 
@@ -48,6 +62,7 @@ def test_debug_trainer_writes_debug_logs_to_files(tmp_path) -> None:
         trainable_policy=FirstLegalPolicy(),
         checkpoint_root=tmp_path,
         logger=logger,
+        opponent_client=StubOpenRouterClient(),
     )
 
     trainer.run_iteration(seed=3)
@@ -63,14 +78,6 @@ def test_debug_trainer_writes_debug_logs_to_files(tmp_path) -> None:
 
 
 def test_debug_trainer_samples_opponent_models_from_pool() -> None:
-    class StubOpenRouterClient:
-        def __init__(self) -> None:
-            self.calls = []
-
-        def complete(self, *, prompt: str, model: str, temperature: float, max_tokens: int):
-            self.calls.append(model)
-            return {"action_type": "noop"}
-
     config = TrainConfig(
         project=ProjectConfig(experiment_name="pool", seed=123),
         environment=EnvironmentConfig(),
@@ -110,7 +117,14 @@ def _config(*, environment: EnvironmentConfig | None = None) -> TrainConfig:
         project=ProjectConfig(experiment_name="debug", seed=123),
         environment=environment or EnvironmentConfig(),
         model=ModelConfig(trainable_model_name="hf://qwen3-8b"),
-        opponents=OpponentConfig(),
+        opponents=OpponentConfig(
+            opponent_provider="openrouter",
+            opponent_pool_id="pool-v1",
+            model_names=("model-a", "model-b", "model-c"),
+            sampling_strategy="random_per_seat",
+            cache_behavior="disabled",
+            prompt_version="v1",
+        ),
         training=TrainingConfig(grpo_group_size=4, checkpoint_interval=1),
         rewards=RewardConfig(),
         evaluation=EvaluationConfig(),

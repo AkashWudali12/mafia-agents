@@ -33,10 +33,10 @@ class ModelConfig(FrozenModel):
 
 
 class OpponentConfig(FrozenModel):
-    opponent_provider: str = "scripted"
-    opponent_pool_id: str = "scripted_v1"
+    opponent_provider: str = "openrouter"
+    opponent_pool_id: str = "openrouter_pool_v1"
     model_names: tuple[str, ...] = ()
-    sampling_strategy: str = "fixed"
+    sampling_strategy: str = "random_per_seat"
     cache_behavior: str = "disabled"
     prompt_version: str = "v1"
 

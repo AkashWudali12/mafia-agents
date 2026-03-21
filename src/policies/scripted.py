@@ -25,7 +25,7 @@ class ScriptedVillagerPolicy(Policy):
                 action_type=ActionType.SPEAK,
                 target=target,
                 intent=intent,
-                message="sharing suspicion",
+                message=_default_speak_message(intent=intent, target=target),
             )
         if choice.action_type == ActionType.VOTE:
             return Action(
@@ -114,3 +114,21 @@ class ScriptedMafiaPolicy(Policy):
                 target=min(target_pool) if target_pool else None,
             )
         return self._day_policy.act(observation)
+
+
+def _default_speak_message(*, intent: DiscussionIntent | None, target: int | None) -> str:
+    if intent == DiscussionIntent.ACCUSE and target is not None:
+        return f"Player {target} looks suspicious to me. We should pressure them."
+    if intent == DiscussionIntent.DEFEND and target is not None:
+        return f"I do not think player {target} is the best vote right now."
+    if intent == DiscussionIntent.CLAIM_DETECTIVE and target is not None:
+        return f"I am the detective, and I want everyone focused on player {target}."
+    if intent == DiscussionIntent.CLAIM_DOCTOR and target is not None:
+        return f"I am the doctor. We should avoid rushing a vote onto player {target}."
+    if intent == DiscussionIntent.QUESTION and target is not None:
+        return f"Player {target}, explain your reasoning for the table."
+    if intent == DiscussionIntent.COORDINATE and target is not None:
+        return f"Let's align our vote discussion around player {target}."
+    if intent == DiscussionIntent.CLAIM_VILLAGER:
+        return "I am a villager, and I want us to compare votes carefully."
+    return "I want everyone to explain their reads before we commit to a vote."

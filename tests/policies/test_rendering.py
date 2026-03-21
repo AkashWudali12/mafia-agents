@@ -159,6 +159,7 @@ def test_render_model_prompt_includes_json_only_instruction_and_schema() -> None
     prompt = render_model_prompt(observation, max_transcript_events=2)
 
     assert "Return exactly one JSON object and no extra text." in prompt
+    assert "If you choose speak, you must include a plain-English message addressed to the other players." in prompt
     assert "\"action_type\"" in prompt
     assert "\"target\"" in prompt
     assert "Observation:" in prompt

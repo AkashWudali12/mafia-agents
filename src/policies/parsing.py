@@ -40,6 +40,10 @@ def normalize_action_for_observation(action: Action, observation: Observation) -
             continue
         if not legal_action.allow_message:
             return normalized.model_copy(update={"message": None})
+        if normalized.action_type == ActionType.SPEAK and not _has_meaningful_message(normalized.message):
+            return normalized.model_copy(
+                update={"message": _default_speak_message(intent=normalized.intent, target=normalized.target)}
+            )
         return normalized
     return noop_action(observation.actor)
 
@@ -51,3 +55,25 @@ def validate_action_for_observation(action: Action, observation: Observation, st
         normalized_action=normalize_action_for_observation(validation.normalized_action, observation),
         errors=validation.errors,
     )
+
+
+def _has_meaningful_message(message: str | None) -> bool:
+    return message is not None and bool(message.strip())
+
+
+def _default_speak_message(*, intent: DiscussionIntent | None, target: int | None) -> str:
+    if intent == DiscussionIntent.ACCUSE and target is not None:
+        return f"Player {target} is my strongest suspicion right now."
+    if intent == DiscussionIntent.DEFEND and target is not None:
+        return f"I want to defend player {target} for now."
+    if intent == DiscussionIntent.CLAIM_DETECTIVE and target is not None:
+        return f"I am claiming detective and I want the table to focus on player {target}."
+    if intent == DiscussionIntent.CLAIM_DOCTOR and target is not None:
+        return f"I am claiming doctor, so be careful about voting player {target} too quickly."
+    if intent == DiscussionIntent.CLAIM_VILLAGER:
+        return "I am a villager, and I want us to compare contradictions carefully."
+    if intent == DiscussionIntent.QUESTION and target is not None:
+        return f"Player {target}, explain your position to the rest of us."
+    if intent == DiscussionIntent.COORDINATE and target is not None:
+        return f"Let's coordinate around player {target} as our next point of pressure."
+    return "I want the table to compare reads before we lock in a vote."

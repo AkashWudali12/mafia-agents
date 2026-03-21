@@ -15,7 +15,7 @@ from train.config import TrainConfig
 from train.grpo import GroupedEpisodeBatch, build_grouped_episode_batch
 from train.hf_policy import HuggingFaceGroupOptimizer, HuggingFaceTrainablePolicy
 from train.logging import RunLogSummary, log_debug_event, summarize_episode, summarize_run
-from train.rollout import build_scripted_policy_map, run_episode
+from train.rollout import run_episode
 from train.trajectory import EpisodeRollout
 
 
@@ -203,8 +203,10 @@ class DebugTrainer:
         trainable_seat: int,
     ) -> tuple[dict[int, Policy], tuple[str, ...]]:
         provider = self._config.opponents.opponent_provider
-        if provider != "openrouter" or not self._config.opponents.model_names:
-            return build_scripted_policy_map(state), ()
+        if provider != "openrouter":
+            raise ValueError("training runs require opponent_provider=openrouter")
+        if not self._config.opponents.model_names:
+            raise ValueError("training runs require a non-empty OpenRouter opponent model pool")
 
         client = self._opponent_client or PydanticAiOpenRouterClient()
         seat_policies: dict[int, Policy] = {}
