@@ -158,6 +158,11 @@ def test_render_model_prompt_includes_json_only_instruction_and_schema() -> None
 
     prompt = render_model_prompt(observation, max_transcript_events=2)
 
+    assert "Basic game outline:" in prompt
+    assert "Do not reveal hidden chain-of-thought, private deliberation, or internal reasoning" in prompt
+    assert "Role reminders:" in prompt
+    assert "Doctor: protect only living players." in prompt
+    assert "Do not act as if you can revive eliminated players" in prompt
     assert "Return exactly one JSON object and no extra text." in prompt
     assert "If you choose speak, you must include a plain-English message addressed to the other players." in prompt
     assert "\"action_type\"" in prompt

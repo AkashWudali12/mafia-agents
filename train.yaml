@@ -91,5 +91,5 @@ modal:
 evaluation:
   mafia_eval_seeds: [101, 202, 303, 404]
   episodes_per_role: 1
-  truthfulqa_subset: smoke
+  truthfulqa_subset: multiple_choice
   benchmark_interval: 1

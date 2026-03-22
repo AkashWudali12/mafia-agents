@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import logging
 import random
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
 from contracts import EnvironmentConfig, Role
+from eval.truthfulqa_eval import TruthfulQABenchmarkResult, run_truthfulqa_checkpoint_evaluation
 from game import new_game
 from policies import OpenRouterPolicy, Policy, PydanticAiOpenRouterClient
 from train.checkpoints import CheckpointState, save_checkpoint
 from train.config import TrainConfig
 from train.grpo import GroupedEpisodeBatch, build_grouped_episode_batch
 from train.hf_policy import HuggingFaceGroupOptimizer, HuggingFaceTrainablePolicy
-from train.logging import RunLogSummary, log_debug_event, summarize_episode, summarize_run
+from train.logging import RunLogSummary, log_debug_event, log_truthfulqa_result, summarize_episode, summarize_run
 from train.rollout import run_episode
 from train.trajectory import EpisodeRollout
 
@@ -48,6 +50,7 @@ class TrainingIterationResult(FrozenModel):
     optimizer_metrics: dict[str, float]
     run_summary: RunLogSummary
     checkpoint_dir: str | None = None
+    truthfulqa_result: TruthfulQABenchmarkResult | None = None
 
 
 class DebugTrainer:
@@ -60,6 +63,7 @@ class DebugTrainer:
         checkpoint_root: str | Path | None = None,
         logger: logging.Logger | None = None,
         opponent_client: object | None = None,
+        truthfulqa_evaluator: Callable[..., TruthfulQABenchmarkResult] | None = None,
     ) -> None:
         self._config = config
         self._trainable_policy = trainable_policy
@@ -68,6 +72,7 @@ class DebugTrainer:
         self._update_index = 0
         self._logger = logger
         self._opponent_client = opponent_client
+        self._truthfulqa_evaluator = truthfulqa_evaluator or run_truthfulqa_checkpoint_evaluation
 
     def run_iteration(self, *, seed: int | None = None) -> TrainingIterationResult:
         log_debug_event(
@@ -99,6 +104,7 @@ class DebugTrainer:
             run_summary=run_summary,
         )
         checkpoint_dir = None
+        truthfulqa_result = None
         if self._checkpoint_root is not None and self._update_index % self._config.training.checkpoint_interval == 0:
             checkpoint = CheckpointState(
                 checkpoint_id=f"ckpt_{self._update_index:05d}",
@@ -129,6 +135,25 @@ class DebugTrainer:
                     checkpoint_dir=str(checkpoint_path),
                     model_dir=str(checkpoint_path / "model"),
                 )
+                truthfulqa_result = self._maybe_run_truthfulqa_benchmark(
+                    checkpoint=checkpoint,
+                    checkpoint_path=checkpoint_path,
+                )
+                if truthfulqa_result is not None:
+                    checkpoint = checkpoint.model_copy(
+                        update={
+                            "metrics": {
+                                **checkpoint.metrics,
+                                "truthfulqa_score": truthfulqa_result.score,
+                                "truthfulqa_mc1_score": truthfulqa_result.mc1_score,
+                                "truthfulqa_mc2_score": truthfulqa_result.mc2_score,
+                            }
+                        }
+                    )
+                    save_checkpoint(
+                        self._checkpoint_root,
+                        state=checkpoint,
+                    )
             checkpoint_dir = str(checkpoint_path)
         log_debug_event(
             self._logger,
@@ -143,7 +168,72 @@ class DebugTrainer:
             optimizer_metrics=optimizer_metrics,
             run_summary=run_summary,
             checkpoint_dir=checkpoint_dir,
+            truthfulqa_result=truthfulqa_result,
         )
+
+    def _maybe_run_truthfulqa_benchmark(
+        self,
+        *,
+        checkpoint: CheckpointState,
+        checkpoint_path: Path,
+    ) -> TruthfulQABenchmarkResult | None:
+        benchmark_interval = self._config.evaluation.benchmark_interval
+        if benchmark_interval <= 0 or checkpoint.update_index % benchmark_interval != 0:
+            return None
+        model_dir = checkpoint_path / "model"
+        log_debug_event(
+            self._logger,
+            "truthfulqa_benchmark_start",
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_dir=str(checkpoint_path),
+            model_dir=str(model_dir),
+            update_index=checkpoint.update_index,
+            subset=self._config.evaluation.truthfulqa_subset,
+        )
+        try:
+            result = self._truthfulqa_evaluator(
+                checkpoint_id=checkpoint.checkpoint_id,
+                checkpoint_model_dir=model_dir,
+                subset=self._config.evaluation.truthfulqa_subset,
+                device=self._config.model.device,
+                cache_dir=self._config.model.cache_dir,
+                max_new_tokens=self._config.model.max_new_tokens,
+                temperature=self._config.model.temperature,
+            )
+        except Exception as exc:
+            log_debug_event(
+                self._logger,
+                "truthfulqa_benchmark_failed",
+                checkpoint_id=checkpoint.checkpoint_id,
+                checkpoint_dir=str(checkpoint_path),
+                update_index=checkpoint.update_index,
+                error=str(exc),
+            )
+            raise
+        log_debug_event(
+            self._logger,
+            "truthfulqa_benchmark_complete",
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_dir=str(checkpoint_path),
+            update_index=checkpoint.update_index,
+            subset=result.subset,
+            total_examples=result.total_examples,
+            score=result.score,
+            mc1_score=result.mc1_score,
+            mc2_score=result.mc2_score,
+        )
+        log_truthfulqa_result(
+            self._logger,
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_dir=str(checkpoint_path),
+            update_index=checkpoint.update_index,
+            subset=result.subset,
+            total_examples=result.total_examples,
+            score=result.score,
+            mc1_score=result.mc1_score,
+            mc2_score=result.mc2_score,
+        )
+        return result
 
     def _run_group(self, rng: random.Random) -> list[EpisodeRollout]:
         episodes: list[EpisodeRollout] = []

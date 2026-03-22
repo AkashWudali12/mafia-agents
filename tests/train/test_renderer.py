@@ -8,6 +8,9 @@ def test_render_observation_prompt_includes_core_sections() -> None:
     prompt = render_observation_prompt(observation)
 
     assert "You are playing Mafia in a structured environment." in prompt
+    assert "Do not reveal hidden chain-of-thought" in prompt
+    assert "Basic game outline:" in prompt
+    assert "Role reminders:" in prompt
     assert "Return exactly one JSON object and no extra text." in prompt
     assert "actor: 0" in prompt
     assert "role: mafia" in prompt

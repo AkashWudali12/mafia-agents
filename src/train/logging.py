@@ -50,6 +50,9 @@ def configure_training_logger(
     resolved_log_dir.mkdir(parents=True, exist_ok=True)
     logger_name = f"train.{run_name}"
     logger = logging.getLogger(logger_name)
+    truthfulqa_scores_path = resolved_log_dir / "truthfulqa_scores.jsonl"
+    setattr(logger, "_truthfulqa_scores_path", truthfulqa_scores_path)
+    truthfulqa_scores_path.touch(exist_ok=True)
     if logger.handlers:
         return logger
 
@@ -88,6 +91,40 @@ def close_training_logger(logger: logging.Logger | None) -> None:
         handler.flush()
         handler.close()
         logger.removeHandler(handler)
+
+
+def log_truthfulqa_result(
+    logger: logging.Logger | None,
+    *,
+    checkpoint_id: str,
+    checkpoint_dir: str,
+    update_index: int,
+    subset: str,
+    total_examples: int,
+    score: float,
+    mc1_score: float,
+    mc2_score: float,
+) -> None:
+    if logger is None:
+        return
+    scores_path = getattr(logger, "_truthfulqa_scores_path", None)
+    if scores_path is None:
+        return
+    record = {
+        "ts": datetime.now(UTC).isoformat(),
+        "checkpoint_id": checkpoint_id,
+        "checkpoint_dir": checkpoint_dir,
+        "update_index": update_index,
+        "subset": subset,
+        "total_examples": total_examples,
+        "score": score,
+        "mc1_score": mc1_score,
+        "mc2_score": mc2_score,
+    }
+    Path(scores_path).parent.mkdir(parents=True, exist_ok=True)
+    with Path(scores_path).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True))
+        handle.write("\n")
 
 
 def summarize_episode(episode: EpisodeRollout) -> EpisodeLogSummary:

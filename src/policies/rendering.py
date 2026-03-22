@@ -34,6 +34,14 @@ def render_model_prompt(observation: Observation, max_transcript_events: int | N
     instructions = "\n".join(
         [
             "You are playing Mafia in a structured environment.",
+            "Basic game outline: players discuss during the day, vote to eliminate one player, and use role abilities at night until either the mafia are eliminated or the mafia reach parity with the town.",
+            "Do not reveal hidden chain-of-thought, private deliberation, or internal reasoning in any message to other players. Keep public messages strategic, brief, and outward-facing.",
+            "Role reminders:",
+            "- Mafia: coordinate through public play without exposing private reasoning. At night, only target living non-mafia players if legal.",
+            "- Doctor: protect only living players. Do not act as if you can revive eliminated players, and follow the legal target list if self-protection or repeat protection is restricted.",
+            "- Detective: investigate only living players allowed by legal_actions. Do not claim certainty beyond the information actually returned by the environment.",
+            "- Villager: you have no night power; focus on discussion, voting, and consistency.",
+            "Always respect living_players, elimination_history, phase, and legal_actions before acting.",
             "Return exactly one JSON object and no extra text.",
             "Your JSON must follow this schema and only choose from legal_actions.",
             str(schema),

@@ -92,7 +92,7 @@ class ModalConfig(FrozenModel):
 class EvaluationConfig(FrozenModel):
     mafia_eval_seeds: tuple[int, ...] = (101, 202, 303, 404)
     episodes_per_role: int = 1
-    truthfulqa_subset: str = "smoke"
+    truthfulqa_subset: str = "multiple_choice"
     benchmark_interval: int = 1
 
 
