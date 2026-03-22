@@ -23,7 +23,7 @@ Deliverables:
 Suggested first milestones:
 
 1. Define `GameState`, `Action`, and `Phase` types.
-2. Implement the 5-player fixed-role flow.
+2. Implement the 6-player fixed-role flow.
 3. Add deterministic tests under `tests/game/`.
 
 ## Engineer 2: Policy, Observation, and Opponent Layer

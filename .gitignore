@@ -7,6 +7,7 @@ __pycache__/
 .venv/
 venv/
 ENV/
+.venv313/
 
 # uv.lock should be committed for reproducible installs
 
@@ -40,3 +41,6 @@ Thumbs.db
 
 # Editors (optional local settings; remove if you prefer committing these)
 .idea/
+
+checkpoints/
+.cache/

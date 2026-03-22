@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -169,11 +170,12 @@ class Observation(FrozenModel):
 
 
 class EnvironmentConfig(FrozenModel):
-    num_players: int = 5
+    num_players: int = 6
     roles: tuple[Role, ...] = (
         Role.MAFIA,
         Role.DOCTOR,
         Role.DETECTIVE,
+        Role.VILLAGER,
         Role.VILLAGER,
         Role.VILLAGER,
     )
@@ -186,23 +188,32 @@ class EnvironmentConfig(FrozenModel):
     tie_break_rule: TieBreakRule = TieBreakRule.LOWEST_ID
     invalid_action_behavior: str = "noop"
 
+    @model_validator(mode="before")
+    @classmethod
+    def align_num_players_with_explicit_roles(cls, data):
+        if isinstance(data, dict) and "roles" in data and "num_players" not in data:
+            roles = data["roles"]
+            if isinstance(roles, (list, tuple)):
+                return {**data, "num_players": len(roles)}
+        return data
+
     @model_validator(mode="after")
     def validate_roles(self) -> "EnvironmentConfig":
-        if self.num_players != 5:
-            raise ValueError("v1 supports exactly 5 players")
+        if self.num_players not in {5, 6}:
+            raise ValueError("foundational engine supports 5- or 6-player games")
         if len(self.roles) != self.num_players:
             raise ValueError("roles must match num_players")
-        expected = sorted(
-            [
-                Role.MAFIA,
-                Role.DOCTOR,
-                Role.DETECTIVE,
-                Role.VILLAGER,
-                Role.VILLAGER,
-            ]
-        )
-        if sorted(self.roles) != expected:
-            raise ValueError("roles must be the fixed v1 five-player composition")
+        counts = Counter(self.roles)
+        if counts[Role.MAFIA] != 1:
+            raise ValueError("roles must contain exactly one mafia")
+        if counts[Role.DOCTOR] > 1:
+            raise ValueError("roles may contain at most one doctor")
+        if counts[Role.DETECTIVE] > 1:
+            raise ValueError("roles may contain at most one detective")
+        if counts[Role.VILLAGER] < 2:
+            raise ValueError("roles must contain at least two villagers")
+        if sum(counts.values()) != self.num_players:
+            raise ValueError("roles must match num_players")
         if self.discussion_rounds < 0:
             raise ValueError("discussion_rounds must be non-negative")
         if self.max_days < 1:

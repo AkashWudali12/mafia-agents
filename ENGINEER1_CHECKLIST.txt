@@ -1,0 +1,8 @@
+Engineer 1 Checklist
+
+[x] Tighten engine validation semantics so phase errors and duplicate-vote errors use the contract error codes.
+[x] Split monolithic engine logic into focused modules once the shared API is stable.
+[x] Add edge-case coverage for `discussion_rounds=0` and `max_days` terminal behavior.
+[x] Add regression tests for `detective_returns_alignment_only=False`.
+[x] Add regression tests for `reveal_roles_on_death=False`.
+[x] Document engine invariants and transition rules next to the implementation.
