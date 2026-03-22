@@ -5,7 +5,16 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+def _resolve_repo_root(script_path: str | Path) -> Path:
+    resolved_script = Path(script_path).resolve()
+    candidates = [resolved_script.parent, *resolved_script.parents]
+    for candidate in candidates:
+        if (candidate / "src").exists() and (candidate / "train.yaml").exists():
+            return candidate
+    return resolved_script.parent
+
+
+REPO_ROOT = _resolve_repo_root(__file__)
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
@@ -23,6 +32,19 @@ DEFAULT_CONFIG_PATH = "/root/train.yaml"
 DEFAULT_MODAL_VOLUME_NAME = "mafia-train-artifacts"
 DEFAULT_MODAL_VOLUME_MOUNT_PATH = "/root/artifacts"
 DEFAULT_CHECKPOINT_ROOT = "checkpoints/modal"
+LOCAL_CONFIG_PATH = REPO_ROOT / "train.yaml"
+
+
+def _modal_resource_kwargs(config_path: str | Path) -> dict[str, object]:
+    config = load_train_config(config_path)
+    resource_kwargs: dict[str, object] = {
+        "cpu": float(config.modal.cpu_count),
+        "memory": config.modal.memory_gb * 1024,
+        "timeout": config.modal.timeout_seconds,
+    }
+    if config.modal.gpu_type.lower() != "none":
+        resource_kwargs["gpu"] = config.modal.gpu_type
+    return resource_kwargs
 
 
 def _resolve_modal_checkpoint_root(
@@ -50,6 +72,7 @@ def _resolve_modal_checkpoint_root(
 
 
 if modal is not None:
+    local_config = load_train_config(LOCAL_CONFIG_PATH)
     volume = modal.Volume.from_name(DEFAULT_MODAL_VOLUME_NAME, create_if_missing=True)
     image = (
         modal.Image.debian_slim(python_version="3.13")
@@ -58,11 +81,11 @@ if modal is not None:
         .add_local_file("train.yaml", remote_path=DEFAULT_CONFIG_PATH, copy=True)
         .env({"PYTHONPATH": "/root/src"})
     )
-    app = modal.App("mafia-train")
+    app = modal.App(local_config.modal.app_name)
 
     @app.function(
         image=image,
-        timeout=7200,
+        **_modal_resource_kwargs(LOCAL_CONFIG_PATH),
         volumes={DEFAULT_MODAL_VOLUME_MOUNT_PATH: volume},
     )
     def run_remote_training(

@@ -17,7 +17,38 @@ def _load_train_modal_module():
 TRAIN_MODAL = _load_train_modal_module()
 
 
-def _write_config(tmp_path: Path, checkpoint_location: str = "checkpoints/modal") -> Path:
+def test_resolve_repo_root_supports_local_scripts_layout(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    scripts_dir = repo_root / "scripts"
+    scripts_dir.mkdir(parents=True)
+    (repo_root / "src").mkdir()
+    (repo_root / "train.yaml").write_text("project:\n  experiment_name: test\nmodel:\n  trainable_model_name: hf://qwen3-8b\n")
+
+    resolved = TRAIN_MODAL._resolve_repo_root(scripts_dir / "train_modal.py")
+
+    assert resolved == repo_root
+
+
+def test_resolve_repo_root_supports_modal_container_layout(tmp_path: Path) -> None:
+    container_root = tmp_path / "root"
+    container_root.mkdir()
+    (container_root / "src").mkdir()
+    (container_root / "train.yaml").write_text("project:\n  experiment_name: test\nmodel:\n  trainable_model_name: hf://qwen3-8b\n")
+
+    resolved = TRAIN_MODAL._resolve_repo_root(container_root / "train_modal.py")
+
+    assert resolved == container_root
+
+
+def _write_config(
+    tmp_path: Path,
+    checkpoint_location: str = "checkpoints/modal",
+    *,
+    gpu_type: str = "none",
+    cpu_count: int = 2,
+    memory_gb: int = 4,
+    timeout_seconds: int = 3600,
+) -> Path:
     config_path = tmp_path / "train.yaml"
     config_path.write_text(
         "\n".join(
@@ -27,6 +58,10 @@ def _write_config(tmp_path: Path, checkpoint_location: str = "checkpoints/modal"
                 "model:",
                 "  trainable_model_name: hf://qwen3-8b",
                 "modal:",
+                f"  gpu_type: {gpu_type}",
+                f"  cpu_count: {cpu_count}",
+                f"  memory_gb: {memory_gb}",
+                f"  timeout_seconds: {timeout_seconds}",
                 f"  checkpoint_location: {checkpoint_location}",
             ]
         )
@@ -64,6 +99,37 @@ def test_reported_truthfulqa_scores_path_uses_configured_log_dir(tmp_path: Path)
     assert str(truthfulqa_scores_path) == (
         f"{TRAIN_MODAL.DEFAULT_MODAL_VOLUME_MOUNT_PATH}/checkpoints/modal/metrics/truthfulqa_scores.jsonl"
     )
+
+
+def test_modal_resource_kwargs_include_gpu_request_when_configured(tmp_path: Path) -> None:
+    config_path = _write_config(
+        tmp_path,
+        gpu_type="A10G",
+        cpu_count=8,
+        memory_gb=32,
+        timeout_seconds=21600,
+    )
+
+    resource_kwargs = TRAIN_MODAL._modal_resource_kwargs(config_path)
+
+    assert resource_kwargs == {
+        "gpu": "A10G",
+        "cpu": 8.0,
+        "memory": 32768,
+        "timeout": 21600,
+    }
+
+
+def test_modal_resource_kwargs_omit_gpu_when_disabled(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path, gpu_type="none", cpu_count=4, memory_gb=8, timeout_seconds=7200)
+
+    resource_kwargs = TRAIN_MODAL._modal_resource_kwargs(config_path)
+
+    assert resource_kwargs == {
+        "cpu": 4.0,
+        "memory": 8192,
+        "timeout": 7200,
+    }
 
 
 def test_resolve_modal_checkpoint_root_uses_configured_relative_path(tmp_path: Path) -> None:
