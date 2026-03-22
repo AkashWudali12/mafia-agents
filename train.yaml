@@ -29,7 +29,7 @@ model:
   max_context_length: 100000
   output_format_mode: typed_json
   device: null
-  max_new_tokens: 256
+  max_new_tokens: 96
   temperature: 0.0
 
 opponents:
