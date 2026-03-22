@@ -81,6 +81,24 @@ def test_debug_trainer_writes_debug_logs_to_files(tmp_path) -> None:
     assert "training_iteration_complete" in events_log
 
 
+def test_debug_trainer_prints_logs_to_stdout(tmp_path, capsys) -> None:
+    logger = configure_training_logger(log_dir=tmp_path / "logs", run_name="trainer-stdout-test")
+    trainer = DebugTrainer(
+        config=_config(),
+        trainable_policy=FirstLegalPolicy(),
+        checkpoint_root=tmp_path,
+        logger=logger,
+        opponent_client=StubOpenRouterClient(),
+    )
+
+    trainer.run_iteration(seed=4)
+    close_training_logger(logger)
+    captured = capsys.readouterr()
+
+    assert "training_iteration_start" in captured.err
+    assert "training_iteration_complete" in captured.err
+
+
 def test_debug_trainer_runs_truthfulqa_after_checkpoint_and_logs_score(tmp_path) -> None:
     class RecordingPolicy(FirstLegalPolicy):
         def save_pretrained(self, output_dir) -> None:

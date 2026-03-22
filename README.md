@@ -115,6 +115,13 @@ For remote runs on Modal:
 modal run scripts/train_modal.py
 ```
 
+Remote artifacts are persisted on a Modal `Volume`, not the container filesystem. By default this script mounts the volume at `/root/artifacts` inside the container and writes training outputs under:
+
+- checkpoints: `/root/artifacts/checkpoints/modal/...`
+- TruthfulQA scores: `/root/artifacts/checkpoints/modal/logs/truthfulqa_scores.jsonl`
+
+If you pass `--checkpoint-root`, use a relative path such as `checkpoints/experiment-a` or an absolute path already under `/root/artifacts`. Writing to other absolute paths in Modal will not persist after the container exits.
+
 Expected credentials:
 
 - `MODAL_TOKEN_ID`

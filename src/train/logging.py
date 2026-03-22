@@ -65,6 +65,11 @@ def configure_training_logger(
     text_handler.setFormatter(formatter)
     logger.addHandler(text_handler)
 
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logger.level)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
     event_handler = logging.FileHandler(resolved_log_dir / "events.jsonl")
     event_handler.setLevel(logger.level)
     event_handler.setFormatter(logging.Formatter("%(message)s"))
