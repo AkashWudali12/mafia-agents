@@ -132,6 +132,102 @@ def test_modal_resource_kwargs_omit_gpu_when_disabled(tmp_path: Path) -> None:
     }
 
 
+def test_collect_forwarded_env_includes_explicit_and_prefixed_keys() -> None:
+    forwarded = TRAIN_MODAL._collect_forwarded_env(
+        {
+            "HF_TOKEN": "hf-secret",
+            "OPENROUTER_API_KEY": "or-secret",
+            "PYTORCH_ALLOC_CONF": "expandable_segments:True",
+            "CUDA_LAUNCH_BLOCKING": "1",
+            "TORCH_SHOW_CPP_STACKTRACES": "1",
+            "UNRELATED_VAR": "ignore-me",
+        }
+    )
+
+    assert forwarded == {
+        "HF_TOKEN": "hf-secret",
+        "OPENROUTER_API_KEY": "or-secret",
+        "PYTORCH_ALLOC_CONF": "expandable_segments:True",
+        "CUDA_LAUNCH_BLOCKING": "1",
+        "TORCH_SHOW_CPP_STACKTRACES": "1",
+    }
+
+
+def test_collect_forwarded_env_skips_empty_values() -> None:
+    forwarded = TRAIN_MODAL._collect_forwarded_env(
+        {
+            "HF_TOKEN": "",
+            "PYTORCH_ALLOC_CONF": "",
+            "CUDA_LAUNCH_BLOCKING": "",
+            "OPENROUTER_API_KEY": "or-secret",
+        }
+    )
+
+    assert forwarded == {
+        "OPENROUTER_API_KEY": "or-secret",
+    }
+
+
+def test_modal_secrets_uses_configured_openrouter_secret_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config_path = tmp_path / "train.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "project:",
+                "  experiment_name: modal-test",
+                "model:",
+                "  trainable_model_name: hf://qwen3-8b",
+                "modal:",
+                "  openrouter_secret_name: mafia-openrouter-secret",
+            ]
+        )
+    )
+
+    class FakeSecret:
+        @staticmethod
+        def from_name(name: str) -> str:
+            return f"secret:{name}"
+
+    class FakeModal:
+        Secret = FakeSecret
+
+    monkeypatch.setattr(TRAIN_MODAL, "modal", FakeModal)
+
+    secrets = TRAIN_MODAL._modal_secrets(config_path)
+
+    assert secrets == ["secret:mafia-openrouter-secret"]
+
+
+def test_modal_secrets_returns_empty_when_secret_is_disabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config_path = tmp_path / "train.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "project:",
+                "  experiment_name: modal-test",
+                "model:",
+                "  trainable_model_name: hf://qwen3-8b",
+                "modal:",
+                "  openrouter_secret_name: null",
+            ]
+        )
+    )
+
+    class FakeSecret:
+        @staticmethod
+        def from_name(name: str) -> str:
+            return f"secret:{name}"
+
+    class FakeModal:
+        Secret = FakeSecret
+
+    monkeypatch.setattr(TRAIN_MODAL, "modal", FakeModal)
+
+    secrets = TRAIN_MODAL._modal_secrets(config_path)
+
+    assert secrets == []
+
+
 def test_resolve_modal_checkpoint_root_uses_configured_relative_path(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path, checkpoint_location="checkpoints/modal")
 

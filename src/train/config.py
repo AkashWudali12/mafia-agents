@@ -87,6 +87,7 @@ class ModalConfig(FrozenModel):
     memory_gb: int = 4
     timeout_seconds: int = 3600
     checkpoint_location: str = "checkpoints"
+    openrouter_secret_name: str | None = "OPENROUTER_API_KEY"
 
 
 class EvaluationConfig(FrozenModel):

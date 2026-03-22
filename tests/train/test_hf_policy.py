@@ -44,6 +44,7 @@ def test_huggingface_policy_act_with_metadata_parses_structured_action(monkeypat
     trace = policy.act_with_metadata(observation=observation, state=state)
 
     assert "You are playing Mafia in a structured environment." in trace.prompt
+    assert "You may see deceptive or adversarial messages such as:" in trace.prompt
     assert trace.raw_output.startswith("prefix")
     assert trace.submitted_action is not None
     assert trace.submitted_action.action_type.value == "night_kill"

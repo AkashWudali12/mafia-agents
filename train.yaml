@@ -1,7 +1,7 @@
 project:
   experiment_name: mafia-local-debug
   seed: 123
-  run_notes: Local Hugging Face training with Qwen3 8B as the trainable policy.
+  run_notes: Local Hugging Face training with Qwen3 4B as the trainable policy.
 
 environment:
   num_players: 6
@@ -23,8 +23,8 @@ environment:
 
 model:
   provider: huggingface
-  trainable_model_name: Qwen/Qwen3-8B
-  tokenizer_name: Qwen/Qwen3-8B
+  trainable_model_name: Qwen/Qwen3-4B
+  tokenizer_name: Qwen/Qwen3-4B
   cache_dir: .cache/huggingface
   max_context_length: 100000
   output_format_mode: typed_json
@@ -83,11 +83,12 @@ logging:
 
 modal:
   app_name: mafia-train
-  gpu_type: A10G
+  gpu_type: A100
   cpu_count: 8
   memory_gb: 32
   timeout_seconds: 21600
   checkpoint_location: checkpoints/modal
+  openrouter_secret_name: OPENROUTER_API_KEY
 
 evaluation:
   mafia_eval_seeds: [101, 202, 303, 404]

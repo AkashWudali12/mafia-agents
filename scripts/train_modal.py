@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 
@@ -33,6 +34,18 @@ DEFAULT_MODAL_VOLUME_NAME = "mafia-train-artifacts"
 DEFAULT_MODAL_VOLUME_MOUNT_PATH = "/root/artifacts"
 DEFAULT_CHECKPOINT_ROOT = "checkpoints/modal"
 LOCAL_CONFIG_PATH = REPO_ROOT / "train.yaml"
+FORWARDED_ENV_KEYS = (
+    "HF_TOKEN",
+    "OPENROUTER_API_KEY",
+    "PYTORCH_ALLOC_CONF",
+    "TOKENIZERS_PARALLELISM",
+)
+FORWARDED_ENV_PREFIXES = (
+    "CUDA_",
+    "NCCL_",
+    "PYTORCH_",
+    "TORCH_",
+)
 
 
 def _modal_resource_kwargs(config_path: str | Path) -> dict[str, object]:
@@ -71,6 +84,29 @@ def _resolve_modal_checkpoint_root(
     return str(resolved_candidate)
 
 
+def _collect_forwarded_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    source = os.environ if env is None else env
+    forwarded: dict[str, str] = {}
+    for key in FORWARDED_ENV_KEYS:
+        value = source.get(key)
+        if value:
+            forwarded[key] = value
+    for key, value in source.items():
+        if value and key.startswith(FORWARDED_ENV_PREFIXES):
+            forwarded[key] = value
+    return forwarded
+
+
+def _modal_secrets(config_path: str | Path) -> list[object]:
+    config = load_train_config(config_path)
+    if modal is None:
+        return []
+    secret_names = []
+    if config.modal.openrouter_secret_name:
+        secret_names.append(config.modal.openrouter_secret_name)
+    return [modal.Secret.from_name(secret_name) for secret_name in secret_names]
+
+
 if modal is not None:
     local_config = load_train_config(LOCAL_CONFIG_PATH)
     volume = modal.Volume.from_name(DEFAULT_MODAL_VOLUME_NAME, create_if_missing=True)
@@ -87,18 +123,16 @@ if modal is not None:
         image=image,
         **_modal_resource_kwargs(LOCAL_CONFIG_PATH),
         volumes={DEFAULT_MODAL_VOLUME_MOUNT_PATH: volume},
+        secrets=_modal_secrets(LOCAL_CONFIG_PATH),
     )
     def run_remote_training(
         config_path: str = DEFAULT_CONFIG_PATH,
         checkpoint_root: str | None = None,
         seed: int | None = None,
-        hf_token: str | None = None,
-        openrouter_api_key: str | None = None,
+        forwarded_env: dict[str, str] | None = None,
     ) -> dict[str, object]:
-        if hf_token:
-            os.environ["HF_TOKEN"] = hf_token
-        if openrouter_api_key:
-            os.environ["OPENROUTER_API_KEY"] = openrouter_api_key
+        for key, value in (forwarded_env or {}).items():
+            os.environ[key] = value
 
         from train import run_training_from_config_path
 
@@ -135,8 +169,7 @@ if modal is not None:
             config_path=config_path,
             checkpoint_root=checkpoint_root,
             seed=seed,
-            hf_token=os.getenv("HF_TOKEN"),
-            openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),
+            forwarded_env=_collect_forwarded_env(),
         )
         print(result)
 

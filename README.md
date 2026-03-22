@@ -129,7 +129,9 @@ Expected credentials:
 - `HF_TOKEN` if the selected Hugging Face model requires authentication
 - `OPENROUTER_API_KEY` only if your opponent setup uses OpenRouter
 
-The Modal script forwards `HF_TOKEN` and `OPENROUTER_API_KEY` from your local environment into the remote run. For production use, replace that with a Modal Secret workflow.
+The Modal training function now attaches the Modal secret named by `modal.openrouter_secret_name` in `train.yaml`. The default is `OPENROUTER_API_KEY`, so if you created a Modal secret with that name and it exposes the `OPENROUTER_API_KEY` env var, the remote worker will see it automatically.
+
+The script still forwards `HF_TOKEN`, `OPENROUTER_API_KEY`, and CUDA/PyTorch runtime env vars such as `PYTORCH_ALLOC_CONF` from your local environment into the remote run. This matters for allocator settings because they must be present in the Modal worker before `torch` initializes. If both are present, the locally forwarded value wins because it is applied inside the worker after startup.
 
 Engineer 3 handoff:
 
