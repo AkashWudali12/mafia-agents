@@ -1,7 +1,7 @@
 project:
   experiment_name: mafia-local-debug
   seed: 123
-  run_notes: Local Hugging Face debug training on a small instruct model.
+  run_notes: Local Hugging Face training with Qwen3 8B as the trainable policy.
 
 environment:
   num_players: 6
@@ -23,8 +23,8 @@ environment:
 
 model:
   provider: huggingface
-  trainable_model_name: HuggingFaceTB/SmolLM2-1.7B-Instruct
-  tokenizer_name: HuggingFaceTB/SmolLM2-1.7B-Instruct
+  trainable_model_name: Qwen/Qwen3-8B
+  tokenizer_name: Qwen/Qwen3-8B
   cache_dir: .cache/huggingface
   max_context_length: 4096
   output_format_mode: typed_json
