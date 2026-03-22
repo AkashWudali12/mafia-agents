@@ -16,7 +16,7 @@ def test_render_observation_prompt_includes_core_sections() -> None:
     assert "role: mafia" in prompt
     assert "day: 1" in prompt
     assert "phase: night_mafia" in prompt
-    assert "living_players: 0, 1, 2, 3, 4" in prompt
+    assert "living_players: 0, 1, 2, 3, 4, 5" in prompt
     assert "legal_actions:" in prompt
     assert '"action_type"' in prompt
 

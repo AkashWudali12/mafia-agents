@@ -79,7 +79,7 @@ V1 should optimize for a working and debuggable training loop, not maximal scale
 The initial scope is:
 
 - one trainable policy
-- fixed 5-player Mafia environment
+- fixed 6-player Mafia environment
 - one game engine as the source of truth for legality and transitions
 - Hugging Face as the access path for the trainable model and its checkpoints
 - structured observations and structured action JSON

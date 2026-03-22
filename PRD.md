@@ -23,7 +23,7 @@ The purpose of the project is to create a robust, trainable RL environment that 
 ### Primary goals
 
 - Train a **Qwen3 8B** policy to play the **full game across all supported roles**, not just a single fixed seat.
-- Run **5-player** games with composition **1 mafia, 1 doctor, 1 detective, 2 villagers**.
+- Run **6-player** games with composition **1 mafia, 1 doctor, 1 detective, 3 villagers**.
 - Support **doctor**, **detective**, **villager**, and **mafia** roles with the above counts.
 - Use **Modal** as the execution platform for scalable training jobs.
 - Use an **opponent pool of OpenRouter models** during training to improve robustness and reduce overfitting to a narrow set of behaviors.
@@ -90,14 +90,14 @@ The platform should be modular enough that:
 
 ### Base game size
 
-The v1 game is **always 5 players**: **1 mafia, 1 doctor, 1 detective, 2 villagers**. This keeps the environment tractable and matches the training setup, where the trainable agent can occupy any one seat while the remaining seats are filled by opponent-controlled policies.
+The v1 game is **always 6 players**: **1 mafia, 1 doctor, 1 detective, 3 villagers**. This keeps the environment tractable and matches the training setup, where the trainable agent can occupy any one seat while the remaining seats are filled by opponent-controlled policies.
 
 ### Roles in v1
 
 - 1 Mafia
 - 1 Detective
 - 1 Doctor
-- 2 Villagers
+- 3 Villagers
 
 This gives the game:
 
@@ -347,7 +347,7 @@ Shaping rewards should be small relative to terminal reward magnitude.
 
 ### Opponent pool
 
-During training, the trainable acting seat is **Qwen3 8B** regardless of whether that seat is mafia, doctor, detective, or villager for the episode; the other four seats in each 5-player game are filled from the opponent pool (external OpenRouter-backed models or configured fixed policies).
+During training, the trainable acting seat is **Qwen3 8B** regardless of whether that seat is mafia, doctor, detective, or villager for the episode; the other five seats in each 6-player game are filled from the opponent pool (external OpenRouter-backed models or configured fixed policies).
 
 Initial opponent pool:
 
@@ -500,8 +500,8 @@ The project must include a `train.yaml` file as the canonical place for training
 
 #### `environment`
 
-- num\_players (v1: **5**)
-- roles (v1: **1 mafia, 1 doctor, 1 detective, 2 villagers**)
+- num\_players (v1: **6**)
+- roles (v1: **1 mafia, 1 doctor, 1 detective, 3 villagers**)
 - trainable\_seat\_selection (v1: configurable; the trainable policy may occupy any supported role seat)
 - trainable\_role\_sampling (e.g. uniform, weighted, curriculum)
 - discussion\_rounds
@@ -578,8 +578,8 @@ project:
   seed: 42
 
 environment:
-  num_players: 5
-  roles: [mafia, doctor, detective, villager, villager]
+  num_players: 6
+  roles: [mafia, doctor, detective, villager, villager, villager]
   trainable_seat_selection: random_supported_role
   trainable_role_sampling: uniform
   discussion_rounds: 2
@@ -719,7 +719,7 @@ logging:
 ### Minimum success bar for v1
 
 - end-to-end training runs complete successfully on Modal
-- Qwen3 8B is trained and evaluated across **mafia, doctor, detective, and villager** assignments in 5-player games (1 mafia / 1 doctor / 1 detective / 2 villagers)
+- Qwen3 8B is trained and evaluated across **mafia, doctor, detective, and villager** assignments in 6-player games (1 mafia / 1 doctor / 1 detective / 3 villagers)
 - doctor mechanics function correctly
 - OpenRouter opponent pool is integrated and sampled during training
 - `train.yaml` drives experiment configuration without hard-coded changes
@@ -746,7 +746,7 @@ Terminal-only reward is clean but slow; shaping must be balanced carefully.
 
 ### Role imbalance
 
-5-player Mafia with doctor and detective may require tuning for fairness; because the trainable agent now plays across roles, the system must avoid over-optimizing toward the most frequently sampled or most densely rewarded roles.
+6-player Mafia with doctor and detective may require tuning for fairness; because the trainable agent now plays across roles, the system must avoid over-optimizing toward the most frequently sampled or most densely rewarded roles.
 
 ### Data efficiency
 

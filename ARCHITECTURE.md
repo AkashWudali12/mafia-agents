@@ -7,7 +7,7 @@ This repository now freezes the initial interfaces needed for parallel work acro
 - `src/contracts.py` is the single source of truth for `Action`, `Observation`, `EnvironmentConfig`, transcript records, and validation results.
 - `Action` is the only action schema used across engine, policies, training, and evaluation.
 - `Observation` always contains `public_state`, `private_state`, and `legal_actions`.
-- `EnvironmentConfig` captures the foundational rule toggles and supports 5- or 6-player games with exactly one mafia, optional doctor/detective seats, and villagers filling the remaining seats.
+- `EnvironmentConfig` defaults to a 6-player setup with exactly one mafia, one doctor, one detective, and three villagers, while still supporting compatible 5-player variants with villagers filling the remaining seats.
 
 ## Engine Boundary
 

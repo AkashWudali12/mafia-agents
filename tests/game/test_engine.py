@@ -152,6 +152,7 @@ def test_voting_tie_break_uses_lowest_player_id() -> None:
         2: 1,
         3: 0,
         4: 2,
+        5: 2,
     }
     for actor, target in votes.items():
         state = apply_action(state, Action(actor=actor, action_type=ActionType.VOTE, target=target))
@@ -233,7 +234,7 @@ def test_explicit_noop_during_voting_skips_ballot_without_affecting_tally() -> N
         )
 
     state = apply_action(state, Action(actor=0, action_type=ActionType.NOOP))
-    for actor in (1, 2, 3, 4):
+    for actor in (1, 2, 3, 4, 5):
         state = apply_action(state, Action(actor=actor, action_type=ActionType.VOTE, target=1))
     state = advance_phase(state)
 
@@ -327,7 +328,7 @@ def test_exceeding_max_days_awards_town_and_ends_game() -> None:
             Action(actor=speaker, action_type=ActionType.SPEAK, target=0, intent=DiscussionIntent.DEFEND, message="hold"),
         )
     state = apply_action(state, Action(actor=0, action_type=ActionType.NOOP))
-    for actor in (1, 2, 3, 4):
+    for actor in (1, 2, 3, 4, 5):
         state = apply_action(state, Action(actor=actor, action_type=ActionType.VOTE, target=1))
 
     state = advance_phase(state)

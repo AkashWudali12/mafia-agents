@@ -65,7 +65,7 @@ def test_run_episode_records_outcome_for_survival_and_notable_events() -> None:
 
 def test_next_actor_uses_dead_role_seat_to_progress_night_phase() -> None:
     state = new_game()
-    state = state.model_copy(update={"phase": Phase.NIGHT_DOCTOR, "alive": (True, False, True, True, True)})
+    state = state.model_copy(update={"phase": Phase.NIGHT_DOCTOR, "alive": (True, False, True, True, True, True)})
 
     assert next_actor(state) == 1
 
@@ -75,7 +75,10 @@ def test_build_scripted_policy_map_matches_roles() -> None:
 
     policy_map = build_scripted_policy_map(state)
 
-    assert sorted(policy_map.keys()) == [0, 1, 2, 3, 4]
+    assert sorted(policy_map.keys()) == [0, 1, 2, 3, 4, 5]
     assert policy_map[0].__class__.__name__ == "ScriptedMafiaPolicy"
     assert policy_map[1].__class__.__name__ == "ScriptedDoctorPolicy"
     assert policy_map[2].__class__.__name__ == "ScriptedDetectivePolicy"
+    assert policy_map[3].__class__.__name__ == "ScriptedVillagerPolicy"
+    assert policy_map[4].__class__.__name__ == "ScriptedVillagerPolicy"
+    assert policy_map[5].__class__.__name__ == "ScriptedVillagerPolicy"

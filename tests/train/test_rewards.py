@@ -75,7 +75,7 @@ def test_mafia_kill_bonus_fires_only_for_mafia() -> None:
             "winner": WinCondition.MAFIA,
             "phase": Phase.TERMINAL,
             "day": 1,
-            "alive": (True, True, True, False, True),
+            "alive": (True, True, True, False, True, True),
             "elimination_history": (
                 EliminationRecord(day=1, player=3, role=Role.VILLAGER, reason="night_kill"),
             ),
@@ -123,7 +123,7 @@ def test_role_specific_bonuses_are_zero_when_trainable_agent_loses() -> None:
             "winner": WinCondition.TOWN,
             "phase": Phase.TERMINAL,
             "day": 2,
-            "alive": (False, True, True, True, True),
+            "alive": (False, True, True, True, True, True),
             "elimination_history": (
                 EliminationRecord(day=1, player=3, role=Role.VILLAGER, reason="night_kill"),
                 EliminationRecord(day=2, player=0, role=Role.MAFIA, reason="vote"),
@@ -235,7 +235,7 @@ def test_doctor_save_bonus_fires_only_on_real_prevented_kills() -> None:
             "winner": WinCondition.TOWN,
             "phase": Phase.TERMINAL,
             "day": 1,
-            "alive": (True, True, True, False, True),
+            "alive": (True, True, True, False, True, True),
             "elimination_history": (
                 EliminationRecord(day=1, player=3, role=Role.VILLAGER, reason="night_kill"),
             ),
@@ -301,7 +301,7 @@ def test_detective_hit_and_confirm_bonus_require_true_mafia_hit() -> None:
             "winner": WinCondition.TOWN,
             "phase": Phase.TERMINAL,
             "day": 1,
-            "alive": (False, True, True, True, True),
+            "alive": (False, True, True, True, True, True),
             "elimination_history": (
                 EliminationRecord(day=1, player=0, role=Role.MAFIA, reason="vote"),
             ),
@@ -361,7 +361,7 @@ def test_vote_accuracy_bonus_tracks_correct_and_incorrect_town_votes() -> None:
                 VoteRecord(day=1, voter=1, target=0),
                 VoteRecord(day=2, voter=1, target=3),
             ),
-            "alive": (False, True, True, False, True),
+            "alive": (False, True, True, False, True, True),
             "elimination_history": (
                 EliminationRecord(day=1, player=0, role=Role.MAFIA, reason="vote"),
                 EliminationRecord(day=2, player=3, role=Role.VILLAGER, reason="vote"),
