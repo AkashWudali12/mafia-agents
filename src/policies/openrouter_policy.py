@@ -56,9 +56,10 @@ class OpenRouterPolicy(Policy):
             )
             return noop_action(observation.actor)
         raw_payload = payload if isinstance(payload, dict) else str(payload)
+        payload_text = json.dumps(payload, sort_keys=True) if isinstance(payload, dict) else str(payload)
         parsed = parse_action_payload(payload, actor=observation.actor)
         normalized = normalize_action_for_observation(parsed, observation)
-        if parsed.action_type.value == "noop" and raw_payload.strip():
+        if parsed.action_type.value == "noop" and payload_text.strip():
             _log_error_event(
                 self._logger,
                 "openrouter_policy_malformed_payload",
