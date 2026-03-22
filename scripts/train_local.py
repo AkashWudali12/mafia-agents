@@ -12,6 +12,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from project_env import load_project_env  # noqa: E402
 from train import run_training_from_config_path  # noqa: E402
 
 
@@ -28,6 +29,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    load_project_env(REPO_ROOT / ".env")
     args = parse_args()
     summary = run_training_from_config_path(
         config_path=args.config,

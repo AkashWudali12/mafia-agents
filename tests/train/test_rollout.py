@@ -1,5 +1,5 @@
-from contracts import Alignment, Phase, Role, WinCondition
-from game import new_game
+from contracts import Action, ActionType, Alignment, Phase, Role, WinCondition
+from game import apply_action, new_game
 from train import build_scripted_policy_map, next_actor, run_episode
 
 
@@ -68,6 +68,15 @@ def test_next_actor_uses_dead_role_seat_to_progress_night_phase() -> None:
     state = state.model_copy(update={"phase": Phase.NIGHT_DOCTOR, "alive": (True, False, True, True, True, True)})
 
     assert next_actor(state) == 1
+
+
+def test_apply_action_skips_dead_detective_phase_after_doctor_turn() -> None:
+    state = new_game()
+    state = state.model_copy(update={"phase": Phase.NIGHT_DOCTOR, "alive": (True, True, False, True, True, True)})
+
+    next_state = apply_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=0))
+
+    assert next_state.phase == Phase.DAY_ANNOUNCEMENT
 
 
 def test_build_scripted_policy_map_matches_roles() -> None:

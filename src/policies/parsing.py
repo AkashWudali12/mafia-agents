@@ -34,7 +34,11 @@ def normalize_action_for_observation(action: Action, observation: Observation) -
     for legal_action in observation.legal_actions:
         if legal_action.action_type != normalized.action_type:
             continue
-        if legal_action.legal_targets and normalized.target not in legal_action.legal_targets:
+        if (
+            legal_action.legal_targets
+            and normalized.target is not None
+            and normalized.target not in legal_action.legal_targets
+        ):
             continue
         if legal_action.legal_intents and normalized.intent not in legal_action.legal_intents:
             continue

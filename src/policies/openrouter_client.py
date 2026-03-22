@@ -8,6 +8,8 @@ from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.settings import ModelSettings
 
+from project_env import load_project_env
+
 from .schemas import ModelActionPayload
 
 
@@ -41,6 +43,7 @@ class PydanticAiOpenRouterClient:
         return result.output.model_dump(mode="json", exclude_none=True)
 
     def _resolve_api_key(self) -> str:
+        load_project_env()
         api_key = self._api_key or os.getenv("OPENROUTER_API_KEY")
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY is required for real OpenRouter model calls")

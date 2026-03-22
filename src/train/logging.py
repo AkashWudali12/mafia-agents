@@ -83,6 +83,17 @@ def log_debug_event(logger: logging.Logger | None, event: str, **payload: Any) -
     logger.debug("%s", json.dumps(record, sort_keys=True, default=str))
 
 
+def log_error_event(logger: logging.Logger | None, event: str, **payload: Any) -> None:
+    if logger is None:
+        return
+    record = {
+        "ts": datetime.now(UTC).isoformat(),
+        "event": event,
+        **_serialize_payload(payload),
+    }
+    logger.error("%s", json.dumps(record, sort_keys=True, default=str))
+
+
 def close_training_logger(logger: logging.Logger | None) -> None:
     if logger is None:
         return

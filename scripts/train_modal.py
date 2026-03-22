@@ -10,6 +10,8 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from project_env import load_project_env
+
 try:
     import modal
 except ImportError:  # pragma: no cover - modal is optional in local unit tests
@@ -58,6 +60,7 @@ if modal is not None:
         checkpoint_root: str = DEFAULT_CHECKPOINT_ROOT,
         seed: int | None = None,
     ) -> None:
+        load_project_env(REPO_ROOT / ".env")
         result = run_remote_training.remote(
             config_path=config_path,
             checkpoint_root=checkpoint_root,

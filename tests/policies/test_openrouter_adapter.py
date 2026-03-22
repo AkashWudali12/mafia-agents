@@ -1,5 +1,6 @@
 from contracts import ActionType, DiscussionIntent, LegalActionSpec, Observation, Phase, PrivateObservationState, PublicObservationState, Role
 from policies.openrouter_policy import OpenRouterPolicy
+from train.logging import close_training_logger, configure_training_logger
 
 
 class StubClient:
@@ -90,6 +91,29 @@ def test_openrouter_policy_rejects_illegal_model_output() -> None:
     assert action.action_type == ActionType.NOOP
 
 
+def test_openrouter_policy_allows_speak_without_target() -> None:
+    client = StubClient(
+        '{"action_type":"speak","intent":"question","message":"What do we know so far?"}'
+    )
+    policy = OpenRouterPolicy(client=client, model="test-model")
+    observation = _observation(
+        LegalActionSpec(
+            action_type=ActionType.SPEAK,
+            legal_targets=(0, 2, 3, 4),
+            legal_intents=(DiscussionIntent.ACCUSE, DiscussionIntent.DEFEND, DiscussionIntent.QUESTION),
+            allow_message=True,
+        )
+    )
+
+    action = policy.act(observation)
+
+    assert action.actor == 1
+    assert action.action_type == ActionType.SPEAK
+    assert action.target is None
+    assert action.intent == DiscussionIntent.QUESTION
+    assert action.message == "What do we know so far?"
+
+
 def test_openrouter_policy_degrades_provider_failure_to_noop() -> None:
     policy = OpenRouterPolicy(client=FailingClient(), model="test-model")
     observation = _observation(
@@ -105,3 +129,24 @@ def test_openrouter_policy_degrades_provider_failure_to_noop() -> None:
 
     assert action.actor == 1
     assert action.action_type == ActionType.NOOP
+
+
+def test_openrouter_policy_logs_provider_failure(tmp_path) -> None:
+    logger = configure_training_logger(log_dir=tmp_path, run_name="openrouter-errors")
+    policy = OpenRouterPolicy(client=FailingClient(), model="test-model", logger=logger)
+    observation = _observation(
+        LegalActionSpec(
+            action_type=ActionType.SPEAK,
+            legal_targets=(0, 2, 3, 4),
+            legal_intents=(DiscussionIntent.ACCUSE, DiscussionIntent.DEFEND),
+            allow_message=True,
+        )
+    )
+
+    action = policy.act(observation)
+    close_training_logger(logger)
+    event_log = (tmp_path / "events.jsonl").read_text(encoding="utf-8")
+
+    assert action.action_type == ActionType.NOOP
+    assert "openrouter_policy_request_failed" in event_log
+    assert "network failure" in event_log

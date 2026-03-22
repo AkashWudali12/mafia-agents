@@ -6,6 +6,10 @@ from contracts import Action, ActionType
 from game import advance_phase, apply_action, build_observation, new_game
 from policies.openrouter_client import PydanticAiOpenRouterClient
 from policies.openrouter_policy import OpenRouterPolicy
+from project_env import load_project_env
+
+
+load_project_env()
 
 
 def _discussion_observation():

@@ -9,13 +9,14 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from contracts import Action, Observation, noop_action
+from contracts import Action, ActionType, DiscussionIntent, Observation, noop_action
 from game import GameState
 from policies.parsing import normalize_action_for_observation
 from policies.schemas import ModelActionPayload
+from project_env import load_project_env
 from train.parser import ParsedActionResult, adapt_action_output, malformed_action_result
 from train.renderer import render_observation_prompt
-from train.logging import log_debug_event
+from train.logging import log_debug_event, log_error_event
 
 
 DEFAULT_TRAINABLE_MODEL = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
@@ -104,6 +105,7 @@ class HuggingFaceTrainablePolicy:
             actor=observation.actor,
             raw_output=raw_output,
             observation=observation,
+            logger=self._logger,
         )
         log_debug_event(
             self._logger,
@@ -122,7 +124,18 @@ class HuggingFaceTrainablePolicy:
             raw_output=raw_output,
             observation=observation,
             state=state,
+            logger=self._logger,
         )
+        if parsed.validation_errors:
+            log_error_event(
+                self._logger,
+                "hf_policy_invalid_action",
+                actor=observation.actor,
+                submitted_action=parsed.submitted_action,
+                normalized_action=parsed.normalized_action,
+                validation_errors=parsed.validation_errors,
+                raw_output=raw_output,
+            )
         logprob = None
         if parsed.parse_error is None:
             logprob = compute_completion_logprob(
@@ -180,7 +193,7 @@ class HuggingFaceTrainablePolicy:
     def _generate_raw_output(self, prompt: str) -> str:
         runtime = self._runtime
         torch = runtime.torch
-        encoded = runtime.tokenizer(prompt, return_tensors="pt")
+        encoded = _build_generation_inputs(runtime=runtime, prompt=prompt)
         encoded = {name: tensor.to(runtime.device) for name, tensor in encoded.items()}
         generate_kwargs = {
             "max_new_tokens": self._max_new_tokens,
@@ -189,6 +202,13 @@ class HuggingFaceTrainablePolicy:
         }
         if self._temperature > 0.0:
             generate_kwargs["temperature"] = self._temperature
+        log_debug_event(
+            self._logger,
+            "hf_generation_start",
+            prompt_chars=len(prompt),
+            input_tokens=int(encoded["input_ids"].shape[1]),
+            device=str(runtime.device),
+        )
         with torch.no_grad():
             output = runtime.model.generate(**encoded, **generate_kwargs)
         input_length = encoded["input_ids"].shape[1]
@@ -291,6 +311,7 @@ def load_huggingface_runtime(
     resolved_device = _resolve_device(torch, device)
     resolved_cache_dir = Path(cache_dir) if cache_dir is not None else Path(".cache/huggingface")
     resolved_cache_dir.mkdir(parents=True, exist_ok=True)
+    load_project_env()
     token = os.getenv("HF_TOKEN") or None
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_name or model_name,
@@ -348,9 +369,27 @@ def _parse_action_with_state(
     raw_output: str,
     observation: Observation,
     state: GameState,
+    logger: logging.Logger | None = None,
 ) -> ParsedActionResult:
     payload_text = _extract_first_json_object(raw_output)
     if payload_text is None:
+        recovered = _recover_malformed_action_with_state(
+            actor=actor,
+            observation=observation,
+            state=state,
+            raw_output=raw_output,
+            parse_error="no JSON object found in model output",
+            logger=logger,
+        )
+        if recovered is not None:
+            return recovered
+        log_error_event(
+            logger,
+            "hf_policy_parse_failed",
+            actor=actor,
+            parse_error="no JSON object found in model output",
+            raw_output=raw_output,
+        )
         return malformed_action_result(
             actor=actor,
             raw_output=raw_output,
@@ -359,6 +398,24 @@ def _parse_action_with_state(
     try:
         payload = ModelActionPayload.model_validate_json(payload_text)
     except Exception as exc:
+        recovered = _recover_malformed_action_with_state(
+            actor=actor,
+            observation=observation,
+            state=state,
+            raw_output=raw_output,
+            parse_error=str(exc),
+            logger=logger,
+        )
+        if recovered is not None:
+            return recovered
+        log_error_event(
+            logger,
+            "hf_policy_parse_failed",
+            actor=actor,
+            parse_error=str(exc),
+            raw_output=raw_output,
+            payload_text=payload_text,
+        )
         return malformed_action_result(
             actor=actor,
             raw_output=raw_output,
@@ -373,13 +430,52 @@ def _parse_action_with_state(
     )
 
 
-def _parse_action_without_state(*, actor: int, raw_output: str, observation: Observation) -> Action:
+def _parse_action_without_state(
+    *,
+    actor: int,
+    raw_output: str,
+    observation: Observation,
+    logger: logging.Logger | None = None,
+) -> Action:
     payload_text = _extract_first_json_object(raw_output)
     if payload_text is None:
+        recovered = _recover_malformed_action_without_state(
+            actor=actor,
+            observation=observation,
+            raw_output=raw_output,
+            parse_error="no JSON object found in model output",
+            logger=logger,
+        )
+        if recovered is not None:
+            return recovered
+        log_error_event(
+            logger,
+            "hf_policy_parse_failed",
+            actor=actor,
+            parse_error="no JSON object found in model output",
+            raw_output=raw_output,
+        )
         return noop_action(actor)
     try:
         payload = ModelActionPayload.model_validate_json(payload_text)
-    except Exception:
+    except Exception as exc:
+        recovered = _recover_malformed_action_without_state(
+            actor=actor,
+            observation=observation,
+            raw_output=raw_output,
+            parse_error=str(exc),
+            logger=logger,
+        )
+        if recovered is not None:
+            return recovered
+        log_error_event(
+            logger,
+            "hf_policy_parse_failed",
+            actor=actor,
+            parse_error=str(exc),
+            raw_output=raw_output,
+            payload_text=payload_text,
+        )
         return noop_action(actor)
     action = Action(
         actor=actor,
@@ -404,6 +500,124 @@ def _extract_first_json_object(text: str) -> str | None:
             depth -= 1
             if depth == 0:
                 return text[start : index + 1]
+    return None
+
+
+def _build_generation_inputs(*, runtime: HuggingFaceRuntimeBundle, prompt: str) -> dict[str, Any]:
+    tokenizer = runtime.tokenizer
+    apply_chat_template = getattr(tokenizer, "apply_chat_template", None)
+    if callable(apply_chat_template):
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a Mafia game policy. Reply with exactly one compact JSON object and no extra text."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ]
+        try:
+            encoded = apply_chat_template(
+                messages,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_tensors="pt",
+                return_dict=True,
+            )
+        except TypeError:
+            encoded = apply_chat_template(
+                messages,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_tensors="pt",
+            )
+            if not isinstance(encoded, dict):
+                encoded = {
+                    "input_ids": encoded,
+                    "attention_mask": runtime.torch.ones_like(encoded),
+                }
+        if isinstance(encoded, dict):
+            return encoded
+    return tokenizer(prompt, return_tensors="pt")
+
+
+def _recover_malformed_action_with_state(
+    *,
+    actor: int,
+    observation: Observation,
+    state: GameState,
+    raw_output: str,
+    parse_error: str,
+    logger: logging.Logger | None = None,
+) -> ParsedActionResult | None:
+    recovered_action = _recover_action_from_observation(actor=actor, observation=observation)
+    if recovered_action is None:
+        return None
+    log_debug_event(
+        logger,
+        "hf_policy_parse_recovered",
+        actor=actor,
+        parse_error=parse_error,
+        recovered_action=recovered_action,
+        raw_output=raw_output,
+    )
+    return adapt_action_output(
+        actor=actor,
+        output=ModelActionPayload(
+            action_type=recovered_action.action_type,
+            target=recovered_action.target,
+            intent=recovered_action.intent,
+            message=recovered_action.message,
+        ),
+        observation=observation,
+        state=state,
+        raw_output=raw_output,
+    )
+
+
+def _recover_malformed_action_without_state(
+    *,
+    actor: int,
+    observation: Observation,
+    raw_output: str,
+    parse_error: str,
+    logger: logging.Logger | None = None,
+) -> Action | None:
+    recovered_action = _recover_action_from_observation(actor=actor, observation=observation)
+    if recovered_action is None:
+        return None
+    log_debug_event(
+        logger,
+        "hf_policy_parse_recovered",
+        actor=actor,
+        parse_error=parse_error,
+        recovered_action=recovered_action,
+        raw_output=raw_output,
+    )
+    return normalize_action_for_observation(recovered_action, observation)
+
+
+def _recover_action_from_observation(*, actor: int, observation: Observation) -> Action | None:
+    if len(observation.legal_actions) != 1:
+        return None
+    legal_action = observation.legal_actions[0]
+    if legal_action.action_type == ActionType.NOOP:
+        return noop_action(actor)
+    if legal_action.action_type == ActionType.SPEAK:
+        default_intent = legal_action.legal_intents[0] if legal_action.legal_intents else DiscussionIntent.QUESTION
+        return Action(
+            actor=actor,
+            action_type=ActionType.SPEAK,
+            target=None,
+            intent=default_intent,
+            message="I want the table to compare reads before we lock in a vote.",
+        )
+    if legal_action.legal_targets:
+        return Action(
+            actor=actor,
+            action_type=legal_action.action_type,
+            target=legal_action.legal_targets[0],
+        )
     return None
 
 

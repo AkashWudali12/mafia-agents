@@ -6,6 +6,11 @@ from urllib import error, request
 import pytest
 from datasets import load_dataset
 
+from project_env import load_project_env
+
+
+load_project_env()
+
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_OPENROUTER_LIVE_TESTS") != "1" or not os.getenv("OPENROUTER_API_KEY"),

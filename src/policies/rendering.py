@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import json
-
 from contracts import LegalActionSpec, Observation
-
-from .schemas import ModelActionPayload
 
 
 def render_observation(observation: Observation, max_transcript_events: int | None = None) -> str:
@@ -30,12 +26,14 @@ def render_observation(observation: Observation, max_transcript_events: int | No
 
 
 def render_model_prompt(observation: Observation, max_transcript_events: int | None = None) -> str:
-    schema = json.dumps(ModelActionPayload.model_json_schema(), indent=2, sort_keys=True)
+    legal_action_names = ", ".join(action.action_type.value for action in observation.legal_actions) or "noop"
     instructions = "\n".join(
         [
             "You are playing Mafia in a structured environment.",
             "Basic game outline: players discuss during the day, vote to eliminate one player, and use role abilities at night until either the mafia are eliminated or the mafia reach parity with the town.",
             "Do not reveal hidden chain-of-thought, private deliberation, or internal reasoning in any message to other players. Keep public messages strategic, brief, and outward-facing.",
+            "Never copy the prompt, legal_actions, transcript, or any schema text into your answer.",
+            "Never say you are mafia. Only make a public role claim when your chosen intent is a matching claim_* intent.",
             "Role reminders:",
             "- Mafia: coordinate through public play without exposing private reasoning. At night, only target living non-mafia players if legal.",
             "- Doctor: protect only living players. Do not act as if you can revive eliminated players, and follow the legal target list if self-protection or repeat protection is restricted.",
@@ -43,11 +41,13 @@ def render_model_prompt(observation: Observation, max_transcript_events: int | N
             "- Villager: you have no night power; focus on discussion, voting, and consistency.",
             "Always respect living_players, elimination_history, phase, and legal_actions before acting.",
             "Return exactly one JSON object and no extra text.",
-            "Your JSON must follow this schema and only choose from legal_actions.",
-            str(schema),
+            f"Allowed action_type values this turn: {legal_action_names}.",
+            'Use only these keys: "action_type" (required), "target" (optional integer), "intent" (optional string), "message" (optional string).',
+            'For targeted actions like vote, night_kill, protect, and investigate, include a legal "target".',
+            'For speak, include an "intent" and a short "message". "target" is optional for speak.',
             'If you choose speak, you must include a plain-English message addressed to the other players.',
+            'Example investigate output: {"action_type":"investigate","target":4}',
             'Example speak output: {"action_type":"speak","target":2,"intent":"accuse","message":"Player 2 is dodging the vote discussion. We should pressure them."}',
-            "Do not repeat the schema, legal_actions, or transcript in your answer.",
             "If a field is not needed, use null or omit it.",
             "Observation:",
         ]
