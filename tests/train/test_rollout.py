@@ -75,7 +75,7 @@ def test_build_scripted_policy_map_matches_roles() -> None:
 
     policy_map = build_scripted_policy_map(state)
 
-    assert sorted(policy_map.keys()) == [0, 1, 2, 3, 4]
+    assert sorted(policy_map.keys()) == [0, 1, 2, 3, 4, 5]
     assert policy_map[0].__class__.__name__ == "ScriptedMafiaPolicy"
     assert policy_map[1].__class__.__name__ == "ScriptedDoctorPolicy"
     assert policy_map[2].__class__.__name__ == "ScriptedDetectivePolicy"

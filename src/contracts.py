@@ -170,12 +170,26 @@ class Observation(FrozenModel):
     legal_actions: tuple[LegalActionSpec, ...] = ()
 
 
+def apply_player_label_aliases_to_text(text: str, aliases: dict[str, str]) -> str:
+    """Replace keys such as ``Player A`` with their display names in free-form text.
+
+    Longer keys are replaced first so overlapping names are handled predictably.
+    """
+    if not text or not aliases:
+        return text
+    result = text
+    for key in sorted(aliases.keys(), key=len, reverse=True):
+        result = result.replace(key, aliases[key])
+    return result
+
+
 class EnvironmentConfig(FrozenModel):
-    num_players: int = 5
+    num_players: int = 6
     roles: tuple[Role, ...] = (
         Role.MAFIA,
         Role.DOCTOR,
         Role.DETECTIVE,
+        Role.VILLAGER,
         Role.VILLAGER,
         Role.VILLAGER,
     )
@@ -189,6 +203,9 @@ class EnvironmentConfig(FrozenModel):
     invalid_action_behavior: str = "noop"
     shuffle_roles_each_game: bool = False
     shuffle_player_labels_each_game: bool = True
+    # Maps canonical codes ``Player A``, ``Player B``, ... to display names for
+    # observations, prompts, and transcript message substitution.
+    player_label_aliases: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_roles(self) -> "EnvironmentConfig":

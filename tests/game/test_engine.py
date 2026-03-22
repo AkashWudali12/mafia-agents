@@ -45,7 +45,10 @@ def test_full_phase_order_across_day_cycle() -> None:
 
 
 def test_night_flow_skips_missing_doctor_phase() -> None:
-    config = EnvironmentConfig(roles=(Role.MAFIA, Role.DETECTIVE, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER))
+    config = EnvironmentConfig(
+        num_players=5,
+        roles=(Role.MAFIA, Role.DETECTIVE, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER),
+    )
     state = new_game(config)
 
     state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=2))
@@ -56,7 +59,10 @@ def test_night_flow_skips_missing_doctor_phase() -> None:
 
 
 def test_night_flow_skips_missing_detective_phase() -> None:
-    config = EnvironmentConfig(roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER))
+    config = EnvironmentConfig(
+        num_players=5,
+        roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER),
+    )
     state = new_game(config)
 
     state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=2))
@@ -70,7 +76,10 @@ def test_night_flow_skips_missing_detective_phase() -> None:
 
 
 def test_night_flow_without_support_roles_still_resolves_kill() -> None:
-    config = EnvironmentConfig(roles=(Role.MAFIA, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER))
+    config = EnvironmentConfig(
+        num_players=5,
+        roles=(Role.MAFIA, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER),
+    )
     state = new_game(config)
 
     state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
@@ -82,7 +91,10 @@ def test_night_flow_without_support_roles_still_resolves_kill() -> None:
 
 
 def test_noop_night_action_without_support_roles_still_resolves_kill() -> None:
-    config = EnvironmentConfig(roles=(Role.MAFIA, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER))
+    config = EnvironmentConfig(
+        num_players=5,
+        roles=(Role.MAFIA, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER),
+    )
     state = new_game(config)
 
     state = apply_action(state, Action(actor=0, action_type=ActionType.NOOP))
@@ -94,7 +106,10 @@ def test_noop_night_action_without_support_roles_still_resolves_kill() -> None:
 
 
 def test_noop_doctor_action_without_detective_still_resolves_kill() -> None:
-    config = EnvironmentConfig(roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER))
+    config = EnvironmentConfig(
+        num_players=5,
+        roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER),
+    )
     state = new_game(config)
 
     state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=2))
@@ -152,6 +167,7 @@ def test_voting_tie_break_uses_lowest_player_id() -> None:
         2: 1,
         3: 0,
         4: 2,
+        5: 0,
     }
     for actor, target in votes.items():
         state = apply_action(state, Action(actor=actor, action_type=ActionType.VOTE, target=target))
@@ -233,7 +249,7 @@ def test_explicit_noop_during_voting_skips_ballot_without_affecting_tally() -> N
         )
 
     state = apply_action(state, Action(actor=0, action_type=ActionType.NOOP))
-    for actor in (1, 2, 3, 4):
+    for actor in (1, 2, 3, 4, 5):
         state = apply_action(state, Action(actor=actor, action_type=ActionType.VOTE, target=1))
     state = advance_phase(state)
 
@@ -327,7 +343,7 @@ def test_exceeding_max_days_awards_town_and_ends_game() -> None:
             Action(actor=speaker, action_type=ActionType.SPEAK, target=0, intent=DiscussionIntent.DEFEND, message="hold"),
         )
     state = apply_action(state, Action(actor=0, action_type=ActionType.NOOP))
-    for actor in (1, 2, 3, 4):
+    for actor in (1, 2, 3, 4, 5):
         state = apply_action(state, Action(actor=actor, action_type=ActionType.VOTE, target=1))
 
     state = advance_phase(state)
@@ -357,3 +373,55 @@ def test_town_wins_when_mafia_is_eliminated() -> None:
 
     assert state.winner == WinCondition.TOWN
     assert state.phase == Phase.TERMINAL
+
+
+def test_player_label_aliases_rename_seat_labels() -> None:
+    aliases = {
+        "Player A": "Ann",
+        "Player B": "Bob",
+        "Player C": "Cal",
+        "Player D": "Dot",
+        "Player E": "Eve",
+        "Player F": "Fay",
+    }
+    config = EnvironmentConfig(shuffle_player_labels_each_game=False, player_label_aliases=aliases)
+    state = new_game(config)
+    assert state.player_labels == ("Ann", "Bob", "Cal", "Dot", "Eve", "Fay")
+
+
+def test_player_label_aliases_apply_after_label_shuffle() -> None:
+    aliases = {f"Player {chr(ord('A') + i)}": f"Name{i}" for i in range(6)}
+    config = EnvironmentConfig(shuffle_player_labels_each_game=True, player_label_aliases=aliases)
+    state = new_game(config, seed=7)
+    assert set(state.player_labels) == {f"Name{i}" for i in range(6)}
+
+
+def test_transcript_message_substitutes_player_codes_using_aliases() -> None:
+    aliases = {
+        "Player A": "Ann",
+        "Player B": "Bob",
+        "Player C": "Cal",
+        "Player D": "Dot",
+        "Player E": "Eve",
+        "Player F": "Fay",
+    }
+    config = EnvironmentConfig(shuffle_player_labels_each_game=False, player_label_aliases=aliases)
+    state = new_game(config)
+    state = apply_action(state, Action(actor=0, action_type=ActionType.NIGHT_KILL, target=4))
+    state = apply_action(state, Action(actor=1, action_type=ActionType.PROTECT, target=4))
+    state = apply_action(state, Action(actor=2, action_type=ActionType.INVESTIGATE, target=0))
+    state = advance_phase(state)
+
+    speaker = state.living_players[state.discussion_turn_index % len(state.living_players)]
+    state = apply_action(
+        state,
+        Action(
+            actor=speaker,
+            action_type=ActionType.SPEAK,
+            target=0,
+            intent=DiscussionIntent.ACCUSE,
+            message="Player C seems off.",
+        ),
+    )
+
+    assert state.transcript[-1].message == "Cal seems off."

@@ -7,9 +7,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from pydantic import BaseModel, ConfigDict
 
-from contracts import Action, ActionType, EliminationRecord, NightOutcome, Phase, TranscriptEvent
+from contracts import Action, ActionType, EliminationRecord, NightOutcome, Phase, Role, TranscriptEvent
+from game.rules import current_speaker, seat_for_role
 from game.state import GameState
 from train.trajectory import EpisodeMetadata
+
+_VIEWER_AUTO_ADVANCE_PHASES = frozenset({Phase.DAY_ANNOUNCEMENT, Phase.RESOLUTION})
 
 
 class FrozenModel(BaseModel):
@@ -23,6 +26,7 @@ class ViewerPlayerState(FrozenModel):
     alive: bool
     is_trainable: bool
     is_current_speaker: bool = False
+    is_turn_highlight: bool = False
     vote_target: int | None = None
     revealed_role: str | None = None
 
@@ -177,6 +181,7 @@ def build_transition_events(
     events: list[ViewerEvent] = []
 
     if action is not None and action.action_type == ActionType.SPEAK and action.message:
+        speaker = _player_label(next_state, action.actor)
         events.append(
             _make_event(
                 kind="speech",
@@ -187,7 +192,8 @@ def build_transition_events(
                 actor=action.actor,
                 target=action.target,
                 message=action.message,
-                bubble=ViewerBubble(actor=action.actor, text=action.message, target=action.target),
+                bubble=None,
+                narrator=f"{speaker}: {action.message}",
             )
         )
     elif action is not None and action.action_type == ActionType.VOTE and action.target is not None:
@@ -200,8 +206,14 @@ def build_transition_events(
                 step_index=step_index,
                 actor=action.actor,
                 target=action.target,
-                message=f"{_seat_name(action.actor)} points the vote at {_seat_name(action.target)}.",
-                narrator=f"{_seat_name(action.actor)} has cast a vote on {_seat_name(action.target)}.",
+                message=(
+                    f"{_player_label(next_state, action.actor)} points the vote at "
+                    f"{_player_label(next_state, action.target)}."
+                ),
+                narrator=(
+                    f"{_player_label(next_state, action.actor)} has cast a vote on "
+                    f"{_player_label(next_state, action.target)}."
+                ),
             )
         )
     elif action is not None and action.action_type == ActionType.NIGHT_KILL and action.target is not None:
@@ -214,8 +226,11 @@ def build_transition_events(
                 step_index=step_index,
                 actor=action.actor,
                 target=action.target,
-                message=f"{_seat_name(action.actor)} marks {_seat_name(action.target)} for the night kill.",
-                narrator=f"The mafia chooses {_seat_name(action.target)} as the night's target.",
+                message=(
+                    f"{_player_label(next_state, action.actor)} marks "
+                    f"{_player_label(next_state, action.target)} for the night kill."
+                ),
+                narrator=f"The mafia chooses {_player_label(next_state, action.target)} as the night's target.",
             )
         )
     elif action is not None and action.action_type == ActionType.PROTECT and action.target is not None:
@@ -228,8 +243,11 @@ def build_transition_events(
                 step_index=step_index,
                 actor=action.actor,
                 target=action.target,
-                message=f"{_seat_name(action.actor)} chooses to protect {_seat_name(action.target)} tonight.",
-                narrator=f"The doctor places protection on {_seat_name(action.target)}.",
+                message=(
+                    f"{_player_label(next_state, action.actor)} chooses to protect "
+                    f"{_player_label(next_state, action.target)} tonight."
+                ),
+                narrator=f"The doctor places protection on {_player_label(next_state, action.target)}.",
             )
         )
     elif action is not None and action.action_type == ActionType.INVESTIGATE and action.target is not None:
@@ -237,11 +255,15 @@ def build_transition_events(
         if investigation is not None:
             result = investigation.role.value if investigation.role is not None else investigation.alignment.value
             message = (
-                f"{_seat_name(action.actor)} investigates {_seat_name(investigation.target)} "
+                f"{_player_label(next_state, action.actor)} investigates "
+                f"{_player_label(next_state, investigation.target)} "
                 f"and learns they are {result}."
             )
         else:
-            message = f"{_seat_name(action.actor)} investigates {_seat_name(action.target)}."
+            message = (
+                f"{_player_label(next_state, action.actor)} investigates "
+                f"{_player_label(next_state, action.target)}."
+            )
         events.append(
             _make_event(
                 kind="detective_investigation",
@@ -264,8 +286,8 @@ def build_transition_events(
                 metadata=metadata,
                 update_index=update_index,
                 step_index=step_index,
-                message=_night_outcome_message(next_state.last_night_outcome),
-                narrator=_night_outcome_message(next_state.last_night_outcome),
+                message=_night_outcome_message(next_state, next_state.last_night_outcome),
+                narrator=_night_outcome_message(next_state, next_state.last_night_outcome),
             )
         )
 
@@ -278,8 +300,8 @@ def build_transition_events(
                 update_index=update_index,
                 step_index=step_index,
                 actor=elimination.player,
-                message=_elimination_message(elimination),
-                narrator=_elimination_message(elimination),
+                message=_elimination_message(next_state, elimination),
+                narrator=_elimination_message(next_state, elimination),
             )
         )
 
@@ -319,17 +341,20 @@ def build_snapshot(
     update_index: int,
     bubble: ViewerBubble | None = None,
     narrator: str | None = None,
+    acting_seat: int | None = None,
 ) -> ViewerSnapshot:
     vote_map = {vote.voter: vote.target for vote in state.current_votes}
-    current_speaker = _current_speaker(state)
+    current_speaker_seat = _current_speaker(state)
+    highlight_seat = acting_seat if acting_seat is not None else _expected_actor_seat(state)
     players = tuple(
         ViewerPlayerState(
             seat=seat,
-            name=_seat_name(seat),
-            initials=_seat_initials(seat),
+            name=_player_label(state, seat),
+            initials=_seat_initials(state, seat),
             alive=state.alive[seat],
             is_trainable=seat == metadata.trainable_seat,
-            is_current_speaker=current_speaker == seat,
+            is_current_speaker=current_speaker_seat == seat,
+            is_turn_highlight=highlight_seat is not None and highlight_seat == seat,
             vote_target=vote_map.get(seat),
             revealed_role=_revealed_role(state, seat),
         )
@@ -345,7 +370,7 @@ def build_snapshot(
         players=players,
         active_bubble=bubble,
         narrator=narrator,
-        transcript=tuple(_transcript_rows(state.transcript)),
+        transcript=tuple(_transcript_rows(state.transcript, state)),
         last_night_outcome=_night_outcome_payload(state.last_night_outcome),
         winner=state.winner.value if state.winner is not None else None,
     )
@@ -437,6 +462,7 @@ def _make_event(
             update_index=update_index,
             bubble=bubble,
             narrator=narrator,
+            acting_seat=actor,
         ),
     )
 
@@ -481,13 +507,18 @@ def _phase_message(state: GameState) -> str:
     return "The game is over."
 
 
-def _night_outcome_message(outcome: NightOutcome) -> str:
+def _night_outcome_message(state: GameState, outcome: NightOutcome) -> str:
     if outcome.victim is None:
         return "Dawn breaks. No one was targeted overnight."
     if outcome.saved:
-        return f"Dawn breaks. {_seat_name(outcome.victim)} was targeted, but the doctor saved them."
+        return (
+            f"Dawn breaks. {_player_label(state, outcome.victim)} was targeted, "
+            "but the doctor saved them."
+        )
     if outcome.announced_death is not None:
-        return f"Dawn breaks. {_seat_name(outcome.announced_death)} was killed overnight."
+        return (
+            f"Dawn breaks. {_player_label(state, outcome.announced_death)} was killed overnight."
+        )
     return "Dawn breaks after a violent night."
 
 
@@ -514,8 +545,8 @@ def _new_investigation(previous_state: GameState, next_state: GameState):
     return next_state.investigation_history[-1]
 
 
-def _elimination_message(elimination: EliminationRecord) -> str:
-    base = f"{_seat_name(elimination.player)} is eliminated from the game."
+def _elimination_message(state: GameState, elimination: EliminationRecord) -> str:
+    base = f"{_player_label(state, elimination.player)} is eliminated from the game."
     if elimination.role is None:
         return base
     return f"{base} Their role is revealed as {elimination.role.value}."
@@ -530,13 +561,13 @@ def _revealed_role(state: GameState, seat: int) -> str | None:
     return None
 
 
-def _transcript_rows(transcript: tuple[TranscriptEvent, ...]) -> list[dict[str, object]]:
+def _transcript_rows(transcript: tuple[TranscriptEvent, ...], state: GameState) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for event in transcript:
         rows.append(
             {
                 "speaker": event.speaker,
-                "speaker_name": _seat_name(event.speaker),
+                "speaker_name": _player_label(state, event.speaker),
                 "action_type": event.action_type.value,
                 "target": event.target,
                 "message": event.message,
@@ -544,6 +575,29 @@ def _transcript_rows(transcript: tuple[TranscriptEvent, ...]) -> list[dict[str, 
             }
         )
     return rows
+
+
+def _expected_actor_seat(state: GameState) -> int | None:
+    """Seat expected to act next (aligned with train.rollout.next_actor)."""
+    if state.phase in _VIEWER_AUTO_ADVANCE_PHASES or state.is_terminal:
+        return None
+    if state.phase == Phase.NIGHT_MAFIA:
+        seat = seat_for_role(state, Role.MAFIA)
+        return seat if seat >= 0 else None
+    if state.phase == Phase.NIGHT_DOCTOR:
+        seat = seat_for_role(state, Role.DOCTOR)
+        return seat if seat >= 0 else None
+    if state.phase == Phase.NIGHT_DETECTIVE:
+        seat = seat_for_role(state, Role.DETECTIVE)
+        return seat if seat >= 0 else None
+    if state.phase == Phase.DAY_DISCUSSION:
+        return current_speaker(state)
+    if state.phase == Phase.DAY_VOTING:
+        for actor in state.living_players:
+            if actor not in state.current_voters:
+                return actor
+        return None
+    return None
 
 
 def _current_speaker(state: GameState) -> int | None:
@@ -558,19 +612,26 @@ def _current_speaker(state: GameState) -> int | None:
     return living[state.discussion_turn_index % len(living)]
 
 
-def _seat_name(seat: int) -> str:
-    names = ("Avery", "Jordan", "Sam", "Mina", "Leo", "Nora")
-    if seat < len(names):
-        return names[seat]
-    return f"Seat {seat + 1}"
+def _player_label(state: GameState, seat: int) -> str:
+    """Public label for a seat index — must match policies.rendering / observation (player_labels[i])."""
+    labels = state.player_labels
+    if labels and 0 <= seat < len(labels):
+        return labels[seat]
+    if 0 <= seat < 26:
+        return f"Player {chr(ord('A') + seat)}"
+    return f"Player {seat + 1}"
 
 
-def _seat_initials(seat: int) -> str:
-    name = _seat_name(seat)
-    parts = name.split()
-    if len(parts) == 1:
-        return name[:2].upper()
-    return "".join(part[0] for part in parts[:2]).upper()
+def _initials_from_label(label: str) -> str:
+    parts = label.split()
+    if not parts:
+        return "?"
+    token = parts[-1]
+    return token[-1].upper() if token else label[:1].upper()
+
+
+def _seat_initials(state: GameState, seat: int) -> str:
+    return _initials_from_label(_player_label(state, seat))
 
 
 def _viewer_html() -> str:
@@ -590,8 +651,6 @@ def _viewer_html() -> str:
       --gold: #efc784;
       --wood-1: #5d331e;
       --wood-2: #2f170d;
-      --bubble: rgba(255, 250, 244, 0.96);
-      --bubble-text: #2b1d14;
       --muted: #d5c2b1;
       --danger: #ff7a6b;
       --town: #77d8c6;
@@ -730,12 +789,35 @@ def _viewer_html() -> str:
       border-color: rgba(119, 216, 198, 0.62);
       box-shadow: 0 0 0 8px rgba(119, 216, 198, 0.08), 0 10px 24px rgba(0,0,0,0.36);
     }
-    .seat.current .portrait {
-      animation: pulse 1.5s ease-in-out infinite;
+    .seat.turn-highlight .portrait {
+      outline: 3px solid rgba(239, 199, 132, 0.95);
+      outline-offset: 5px;
+      border-color: rgba(255, 228, 196, 0.75);
+      box-shadow:
+        0 0 0 6px rgba(239, 199, 132, 0.2),
+        0 0 32px rgba(239, 199, 132, 0.4),
+        0 10px 24px rgba(0,0,0,0.36);
+      animation: turn-ring-pulse 2s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.04); }
+    .seat.turn-highlight.dead .portrait {
+      outline-color: rgba(180, 160, 140, 0.75);
+      animation: none;
+    }
+    @keyframes turn-ring-pulse {
+      0%, 100% {
+        outline-color: rgba(239, 199, 132, 0.75);
+        box-shadow:
+          0 0 0 5px rgba(239, 199, 132, 0.15),
+          0 0 24px rgba(239, 199, 132, 0.35),
+          0 10px 24px rgba(0,0,0,0.36);
+      }
+      50% {
+        outline-color: rgba(255, 236, 210, 1);
+        box-shadow:
+          0 0 0 8px rgba(239, 199, 132, 0.28),
+          0 0 36px rgba(239, 199, 132, 0.5),
+          0 10px 24px rgba(0,0,0,0.36);
+      }
     }
     .name {
       font-size: 1rem;
@@ -745,30 +827,6 @@ def _viewer_html() -> str:
       font-size: 0.82rem;
       color: var(--muted);
       min-height: 1.3em;
-    }
-    .bubble {
-      position: absolute;
-      left: 50%;
-      bottom: calc(100% + 12px);
-      transform: translateX(-50%);
-      max-width: 220px;
-      padding: 12px 14px;
-      color: var(--bubble-text);
-      background: var(--bubble);
-      border-radius: 18px;
-      font-size: 0.93rem;
-      line-height: 1.32;
-      box-shadow: 0 14px 28px rgba(0,0,0,0.22);
-    }
-    .bubble::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      bottom: -12px;
-      transform: translateX(-50%);
-      border-width: 12px 10px 0 10px;
-      border-style: solid;
-      border-color: var(--bubble) transparent transparent transparent;
     }
     .vote-tag, .role-tag {
       display: inline-flex;
@@ -785,15 +843,17 @@ def _viewer_html() -> str:
       left: 50%;
       top: 50%;
       transform: translate(-50%, -50%);
-      width: min(520px, calc(100% - 48px));
-      padding: 18px 20px;
+      width: min(560px, calc(100% - 48px));
+      padding: 22px 26px;
       text-align: center;
-      font-size: 1.05rem;
-      line-height: 1.4;
+      font-size: 1.08rem;
+      line-height: 1.45;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.1);
-      background: rgba(13, 12, 16, 0.58);
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(13, 12, 16, 0.72);
       backdrop-filter: blur(12px);
+      color: #f4ede6;
+      z-index: 2;
     }
     .sidebar {
       display: flex;
@@ -869,7 +929,6 @@ def _viewer_html() -> str:
       .table-wrap { height: 560px; }
       .seat { width: 132px; }
       .portrait { width: 76px; height: 76px; }
-      .bubble { max-width: 160px; font-size: 0.82rem; }
     }
   </style>
 </head>
@@ -986,12 +1045,18 @@ def _viewer_html() -> str:
       });
     }
 
+    function defaultPlayerLabel(seat) {
+      if (typeof seat !== "number" || seat < 0) return "";
+      if (seat < 26) return "Player " + String.fromCharCode(65 + seat);
+      return "Player " + (seat + 1);
+    }
+
     function seatName(snapshot, seat) {
       if (seat === null || seat === undefined) {
         return "";
       }
       const player = snapshot.players.find((candidate) => candidate.seat === seat);
-      return player ? player.name : ("Seat " + (seat + 1));
+      return player ? player.name : defaultPlayerLabel(seat);
     }
 
     function labelForKind(kind, event) {
@@ -1059,7 +1124,7 @@ def _viewer_html() -> str:
       const snapshot = event.snapshot;
       headline.textContent = snapshot.headline;
       subheadline.textContent = snapshot.subheadline;
-      runMeta.textContent = "Update " + snapshot.update_index + " • " + episode.label + " • " + event.kind.replaceAll("_", " ");
+      runMeta.textContent = episode.label + " • " + event.kind.replaceAll("_", " ");
       latestEvent.textContent = event.message || snapshot.narrator || "No event details.";
 
       tableWrap.classList.toggle("night", String(snapshot.phase).startsWith("night"));
@@ -1067,7 +1132,12 @@ def _viewer_html() -> str:
 
       snapshot.players.forEach((player) => {
         const seat = document.createElement("div");
-        seat.className = "seat s" + player.seat + (player.alive ? "" : " dead") + (player.is_trainable ? " trainable" : "") + (player.is_current_speaker ? " current" : "");
+        seat.className =
+          "seat s" +
+          player.seat +
+          (player.alive ? "" : " dead") +
+          (player.is_trainable ? " trainable" : "") +
+          (player.is_turn_highlight ? " turn-highlight" : "");
 
         const portrait = document.createElement("div");
         portrait.className = "portrait";
@@ -1099,13 +1169,6 @@ def _viewer_html() -> str:
           role.className = "role-tag";
           role.textContent = player.revealed_role;
           seat.appendChild(role);
-        }
-
-        if (snapshot.active_bubble && snapshot.active_bubble.actor === player.seat) {
-          const bubble = document.createElement("div");
-          bubble.className = "bubble";
-          bubble.textContent = snapshot.active_bubble.text;
-          seat.appendChild(bubble);
         }
 
         tableWrap.appendChild(seat);

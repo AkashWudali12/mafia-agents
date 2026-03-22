@@ -17,6 +17,7 @@ def test_new_game_can_shuffle_role_assignment_deterministically() -> None:
 
 def test_new_game_preserves_fixed_roles_when_shuffle_disabled() -> None:
     config = EnvironmentConfig(
+        num_players=5,
         roles=(Role.MAFIA, Role.DOCTOR, Role.DETECTIVE, Role.VILLAGER, Role.VILLAGER),
         shuffle_roles_each_game=False,
     )

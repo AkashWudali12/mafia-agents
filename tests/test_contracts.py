@@ -11,27 +11,36 @@ from contracts import (
     PrivateObservationState,
     PublicObservationState,
     Role,
+    apply_player_label_aliases_to_text,
 )
+
+
+def test_apply_player_label_aliases_replaces_longest_keys_first() -> None:
+    aliases = {"Player A": "Ann", "Player AB": "Abby"}
+    assert apply_player_label_aliases_to_text("Player AB and Player A", aliases) == "Abby and Ann"
 
 
 def test_environment_config_serializes_fixed_v1_defaults() -> None:
     config = EnvironmentConfig()
     dumped = config.model_dump()
 
-    assert dumped["num_players"] == 5
+    assert dumped["num_players"] == 6
     assert dumped["roles"] == (
         Role.MAFIA,
         Role.DOCTOR,
         Role.DETECTIVE,
         Role.VILLAGER,
         Role.VILLAGER,
+        Role.VILLAGER,
     )
     assert dumped["invalid_action_behavior"] == "noop"
+    assert dumped["player_label_aliases"] == {}
 
 
 def test_environment_config_accepts_supported_five_player_variant() -> None:
     config = EnvironmentConfig(
-        roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER)
+        num_players=5,
+        roles=(Role.MAFIA, Role.DOCTOR, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER),
     )
 
     assert config.num_players == 5

@@ -4,11 +4,12 @@ project:
   run_notes: Local Hugging Face debug training on a small instruct model.
 
 environment:
-  num_players: 5
+  num_players: 6
   roles:
     - mafia
     - doctor
     - detective
+    - villager
     - villager
     - villager
   discussion_rounds: 2
@@ -20,6 +21,14 @@ environment:
   tie_break_rule: lowest_id
   invalid_action_behavior: noop
   shuffle_roles_each_game: true
+  # Optional: map canonical Player A–F codes to display names for labels and transcript text.
+  player_label_aliases:
+    Player A: Avery
+    Player B: Jordan
+    Player C: Riley
+    Player D: Morgan
+    Player E: Casey
+    Player F: Quinn
 
 model:
   provider: huggingface

@@ -13,6 +13,7 @@ from contracts import (
     ValidationLogEntry,
     VoteRecord,
     WinCondition,
+    apply_player_label_aliases_to_text,
     role_alignment,
 )
 
@@ -77,6 +78,9 @@ def apply_action(state: GameState, action: Action) -> GameState:
             )
             return _resolve_night(resolved)
         case Phase.DAY_DISCUSSION:
+            msg = normalized.message
+            if msg is not None:
+                msg = apply_player_label_aliases_to_text(msg, next_state.config.player_label_aliases)
             spoken = next_state.model_copy(
                 update={
                     "transcript": next_state.transcript
@@ -88,7 +92,7 @@ def apply_action(state: GameState, action: Action) -> GameState:
                             action_type=normalized.action_type,
                             intent=normalized.intent,
                             target=normalized.target,
-                            message=normalized.message,
+                            message=msg,
                         ),
                     ),
                 }

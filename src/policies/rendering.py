@@ -31,15 +31,24 @@ def render_observation(observation: Observation, max_transcript_events: int | No
 
 def render_model_prompt(observation: Observation, max_transcript_events: int | None = None) -> str:
     schema = json.dumps(ModelActionPayload.model_json_schema(), indent=2, sort_keys=True)
+    self_label = _label_for_player(observation, observation.actor)
     instructions = "\n".join(
         [
             "You are playing Mafia in a structured environment.",
             "Return exactly one JSON object and no extra text.",
             "Your JSON must follow this schema and only choose from legal_actions.",
             str(schema),
-            'If you choose speak, you must include a plain-English message addressed to the other players.',
-            'Use the public player labels exactly as shown in the observation when you set target.',
-            'Example speak output: {"action_type":"speak","target":"Player C","intent":"accuse","message":"Player C is dodging the vote discussion. We should pressure them."}',
+            f"Your seat's public label is {self_label} (same as actor in the observation below).",
+            "If you choose speak, you must include a plain-English message addressed to the other players.",
+            "Use the public player labels exactly as shown in the observation when you set target.",
+            f"Never refer to yourself using your own public label ({self_label}) in the third person in message "
+            '(forbidden example when you are that player: "Player C is acting suspicious"). '
+            "For yourself use first person (I, me, my) or speak without naming yourself as a separate player.",
+            'Example accusing another player (when your label is not Player C): '
+            '{"action_type":"speak","target":"Player C","intent":"accuse",'
+            '"message":"Player C is dodging the vote discussion. We should pressure them."}',
+            'Example talking about yourself: '
+            '{"action_type":"speak","intent":"defend","message":"I have been quiet because I was listening for inconsistencies."}',
             "Do not repeat the schema, legal_actions, or transcript in your answer.",
             "If a field is not needed, use null or omit it.",
             "Observation:",

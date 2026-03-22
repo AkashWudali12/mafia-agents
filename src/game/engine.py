@@ -30,4 +30,7 @@ def _player_labels(config: EnvironmentConfig, seed: int | None) -> tuple[str, ..
     labels = [f"Player {chr(ord('A') + index)}" for index in range(config.num_players)]
     if config.shuffle_player_labels_each_game:
         random.Random(None if seed is None else seed + 10_000).shuffle(labels)
+    aliases = config.player_label_aliases
+    if aliases:
+        labels = [aliases.get(lbl, lbl) for lbl in labels]
     return tuple(labels)
