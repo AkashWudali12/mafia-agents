@@ -18,11 +18,12 @@ def test_environment_config_serializes_fixed_v1_defaults() -> None:
     config = EnvironmentConfig()
     dumped = config.model_dump()
 
-    assert dumped["num_players"] == 5
+    assert dumped["num_players"] == 6
     assert dumped["roles"] == (
         Role.MAFIA,
         Role.DOCTOR,
         Role.DETECTIVE,
+        Role.VILLAGER,
         Role.VILLAGER,
         Role.VILLAGER,
     )

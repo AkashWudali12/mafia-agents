@@ -170,11 +170,12 @@ class Observation(FrozenModel):
 
 
 class EnvironmentConfig(FrozenModel):
-    num_players: int = 5
+    num_players: int = 6
     roles: tuple[Role, ...] = (
         Role.MAFIA,
         Role.DOCTOR,
         Role.DETECTIVE,
+        Role.VILLAGER,
         Role.VILLAGER,
         Role.VILLAGER,
     )
@@ -186,6 +187,15 @@ class EnvironmentConfig(FrozenModel):
     reveal_roles_on_death: bool = True
     tie_break_rule: TieBreakRule = TieBreakRule.LOWEST_ID
     invalid_action_behavior: str = "noop"
+
+    @model_validator(mode="before")
+    @classmethod
+    def align_num_players_with_explicit_roles(cls, data):
+        if isinstance(data, dict) and "roles" in data and "num_players" not in data:
+            roles = data["roles"]
+            if isinstance(roles, (list, tuple)):
+                return {**data, "num_players": len(roles)}
+        return data
 
     @model_validator(mode="after")
     def validate_roles(self) -> "EnvironmentConfig":

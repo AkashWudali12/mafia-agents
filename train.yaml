@@ -4,11 +4,12 @@ project:
   run_notes: Local Hugging Face debug training on a small instruct model.
 
 environment:
-  num_players: 5
+  num_players: 6
   roles:
     - mafia
     - doctor
     - detective
+    - villager
     - villager
     - villager
   discussion_rounds: 2
