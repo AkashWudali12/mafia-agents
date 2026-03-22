@@ -33,6 +33,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--ui-host", default=None, help="Host for the local viewer server")
     parser.add_argument("--ui-port", type=int, default=None, help="Port for the local viewer server")
+    parser.add_argument(
+        "--tts",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable ElevenLabs TTS (API + voice ids in .env). Can be used with or without --ui.",
+    )
     return parser.parse_args()
 
 
@@ -40,12 +46,13 @@ def main() -> int:
     args = parse_args()
     load_dotenv(REPO_ROOT / ".env")
     config = load_train_config(args.config)
-    if args.ui is not None or args.ui_host is not None or args.ui_port is not None:
+    if args.ui is not None or args.ui_host is not None or args.ui_port is not None or args.tts is not None:
         viewer_config = config.viewer.model_copy(
             update={
                 "enabled": config.viewer.enabled if args.ui is None else args.ui,
                 "host": config.viewer.host if args.ui_host is None else args.ui_host,
                 "port": config.viewer.port if args.ui_port is None else args.ui_port,
+                "tts_enabled": config.viewer.tts_enabled if args.tts is None else args.tts,
             }
         )
         config = config.model_copy(update={"viewer": viewer_config})

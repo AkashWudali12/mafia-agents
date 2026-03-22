@@ -5,6 +5,7 @@ description = "Foundational contracts and engine skeleton for a Mafia RL environ
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+  "elevenlabs>=2.39,<3.0",
   "pydantic>=2.11,<3.0",
   "pydantic-ai-slim[openrouter]",
   "PyYAML>=6.0,<7.0",

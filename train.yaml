@@ -109,3 +109,5 @@ viewer:
   host: 127.0.0.1
   port: 8765
   max_cached_events: 5000
+  # ElevenLabs cloud TTS (also: scripts/train_local.py --tts). Requires ELEVENLABS_* in .env.
+  tts_enabled: false

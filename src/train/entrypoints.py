@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from train.audio import CompositeViewerEventSink, build_elevenlabs_event_sink
 from train.config import TrainConfig, load_train_config
 from train.logging import close_training_logger, configure_training_logger, log_debug_event
 from train.trainer import DebugTrainer, TrainingIterationResult, build_local_huggingface_trainer
-from train.viewer import LiveTrainingViewer
+from train.viewer import LiveTrainingViewer, ViewerEventSink
 
 
 class FrozenModel(BaseModel):
@@ -71,8 +73,9 @@ def run_training_from_config(
         checkpoint_root=str(checkpoint_root_path),
         config=config,
     )
-    viewer = None
-    viewer_url = None
+    viewer: LiveTrainingViewer | None = None
+    viewer_url: str | None = None
+    event_sink: ViewerEventSink | None = None
     try:
         if config.viewer.enabled:
             viewer = LiveTrainingViewer(
@@ -84,11 +87,27 @@ def run_training_from_config(
             log_debug_event(logger, "viewer_started", viewer_url=viewer_url)
             if viewer_started_callback is not None:
                 viewer_started_callback(viewer_url)
+            event_sink = viewer
+
+        if config.viewer.tts_enabled:
+            narrator_voice = os.getenv("ELEVENLABS_NARRATOR_VOICE_ID") or None
+            tts_sink = build_elevenlabs_event_sink(
+                player_count=config.environment.num_players,
+                model_id=config.viewer.tts_model_id,
+                output_format=config.viewer.tts_output_format,
+                narrator_voice_id=narrator_voice,
+            )
+            if event_sink is not None:
+                event_sink = CompositeViewerEventSink(event_sink, tts_sink)
+            else:
+                event_sink = tts_sink
+            log_debug_event(logger, "viewer_tts_enabled", provider="elevenlabs")
+
         trainer = build_local_huggingface_trainer(
             config=config,
             checkpoint_root=checkpoint_root,
             logger=logger,
-            viewer=viewer,
+            viewer=event_sink,
         )
         summary = run_training_updates(
             trainer=trainer,

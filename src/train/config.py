@@ -101,6 +101,10 @@ class ViewerConfig(FrozenModel):
     host: str = "127.0.0.1"
     port: int = 8765
     max_cached_events: int = 5000
+    # ElevenLabs cloud TTS (see ELEVENLABS_* in .env). Local process only plays returned audio.
+    tts_enabled: bool = False
+    tts_model_id: str | None = None
+    tts_output_format: str | None = None
 
 
 class TrainConfig(FrozenModel):

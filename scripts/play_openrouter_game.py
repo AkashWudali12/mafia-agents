@@ -18,6 +18,12 @@ if str(SRC_ROOT) not in sys.path:
 
 from game import new_game  # noqa: E402
 from policies import OpenRouterPolicy, PydanticAiOpenRouterClient  # noqa: E402
+from train.audio import (  # noqa: E402
+    DEFAULT_ELEVENLABS_MODEL_ID,
+    DEFAULT_ELEVENLABS_OUTPUT_FORMAT,
+    CompositeViewerEventSink,
+    build_elevenlabs_event_sink,
+)
 from train import LiveTrainingViewer, load_dotenv, load_train_config, run_episode  # noqa: E402
 
 
@@ -52,12 +58,40 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="Seat index to highlight in the viewer and metadata summary.",
     )
+    parser.add_argument(
+        "--tts",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable ElevenLabs text-to-speech playback for player speech events.",
+    )
+    parser.add_argument(
+        "--tts-player-voice",
+        action="append",
+        dest="tts_player_voices",
+        default=None,
+        help="ElevenLabs voice id to use for player speech. Repeat to provide multiple voice ids.",
+    )
+    parser.add_argument(
+        "--tts-narrator-voice",
+        default=None,
+        help="Optional ElevenLabs voice id for non-player narration events like eliminations and phase changes.",
+    )
+    parser.add_argument(
+        "--tts-model-id",
+        default=os.getenv("ELEVENLABS_MODEL_ID", DEFAULT_ELEVENLABS_MODEL_ID),
+        help="ElevenLabs model id to use for synthesis.",
+    )
+    parser.add_argument(
+        "--tts-output-format",
+        default=os.getenv("ELEVENLABS_OUTPUT_FORMAT", DEFAULT_ELEVENLABS_OUTPUT_FORMAT),
+        help="ElevenLabs audio format to request.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
-    args = parse_args()
     load_dotenv(REPO_ROOT / ".env")
+    args = parse_args()
     if not os.getenv("OPENROUTER_API_KEY"):
         raise RuntimeError("OPENROUTER_API_KEY is required to run an OpenRouter-only local game")
 
@@ -87,10 +121,24 @@ def main() -> int:
 
     viewer = None
     viewer_url = None
+    event_sink = None
     if args.ui:
         viewer = LiveTrainingViewer(host=args.ui_host, port=args.ui_port, max_cached_events=config.viewer.max_cached_events)
         viewer_url = viewer.start()
         webbrowser.open(viewer_url, new=2, autoraise=True)
+        event_sink = viewer
+
+    if args.tts:
+        narrator_voice_id = args.tts_narrator_voice or os.getenv("ELEVENLABS_NARRATOR_VOICE_ID") or None
+        cli_voices = tuple(args.tts_player_voices) if args.tts_player_voices else None
+        tts_sink = build_elevenlabs_event_sink(
+            player_count=state.config.num_players,
+            model_id=args.tts_model_id,
+            output_format=args.tts_output_format,
+            narrator_voice_id=narrator_voice_id,
+            cli_player_voice_ids=cli_voices,
+        )
+        event_sink = CompositeViewerEventSink(*(sink for sink in (viewer, tts_sink) if sink is not None))
 
     try:
         rollout = run_episode(
@@ -106,7 +154,7 @@ def main() -> int:
             update_index=0,
             seed=seed,
             initial_state=state,
-            viewer=viewer,
+            viewer=event_sink,
         )
 
         summary = {
