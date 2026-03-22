@@ -43,8 +43,9 @@ def run_mafia_evaluation(
         compatible_seats = [seat for seat, seat_role in enumerate(config.roles) if seat_role == role]
         for episode_index in range(episodes_per_role):
             seed = seeds[(episode_index + len(episodes)) % len(seeds)]
-            trainable_seat = compatible_seats[episode_index % len(compatible_seats)]
             state = new_game(config=config, seed=seed)
+            compatible_state_seats = [seat for seat, seat_role in enumerate(state.roles) if seat_role == role]
+            trainable_seat = compatible_state_seats[episode_index % len(compatible_state_seats)]
             seat_policies = build_scripted_policy_map(state)
             seat_policies[trainable_seat] = trainable_policy
             rollout = run_episode(

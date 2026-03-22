@@ -120,6 +120,7 @@ def build_observation(state: GameState, actor: int) -> Observation:
             day=state.day,
             phase=state.phase,
             living_players=state.living_players,
+            player_labels=state.player_labels,
             current_speaker=current_speaker(state),
             discussion_round_index=discussion_round_index(state),
             transcript=state.transcript,

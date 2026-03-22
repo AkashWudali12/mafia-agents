@@ -19,16 +19,17 @@ environment:
   reveal_roles_on_death: true
   tie_break_rule: lowest_id
   invalid_action_behavior: noop
+  shuffle_roles_each_game: true
 
 model:
   provider: huggingface
   trainable_model_name: HuggingFaceTB/SmolLM2-1.7B-Instruct
   tokenizer_name: HuggingFaceTB/SmolLM2-1.7B-Instruct
   cache_dir: .cache/huggingface
-  max_context_length: 4096
+  max_context_length: 100000
   output_format_mode: typed_json
   device: null
-  max_new_tokens: 96
+  max_new_tokens: 10000
   temperature: 0.0
 
 opponents:
@@ -93,3 +94,9 @@ evaluation:
   episodes_per_role: 1
   truthfulqa_subset: smoke
   benchmark_interval: 1
+
+viewer:
+  enabled: false
+  host: 127.0.0.1
+  port: 8765
+  max_cached_events: 5000

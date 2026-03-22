@@ -17,6 +17,7 @@ from train.hf_policy import HuggingFaceGroupOptimizer, HuggingFaceTrainablePolic
 from train.logging import RunLogSummary, log_debug_event, summarize_episode, summarize_run
 from train.rollout import run_episode
 from train.trajectory import EpisodeRollout
+from train.viewer import ViewerEventSink
 
 
 class FrozenModel(BaseModel):
@@ -60,6 +61,7 @@ class DebugTrainer:
         checkpoint_root: str | Path | None = None,
         logger: logging.Logger | None = None,
         opponent_client: object | None = None,
+        viewer: ViewerEventSink | None = None,
     ) -> None:
         self._config = config
         self._trainable_policy = trainable_policy
@@ -68,6 +70,7 @@ class DebugTrainer:
         self._update_index = 0
         self._logger = logger
         self._opponent_client = opponent_client
+        self._viewer = viewer
 
     def run_iteration(self, *, seed: int | None = None) -> TrainingIterationResult:
         log_debug_event(
@@ -151,7 +154,7 @@ class DebugTrainer:
             role = sample_trainable_role(rng, self._config.environment)
             episode_seed = rng.randint(0, 2**31 - 1)
             state = new_game(config=self._config.environment, seed=episode_seed)
-            trainable_seat = sample_seat_for_role(rng, self._config.environment.roles, role)
+            trainable_seat = sample_seat_for_role(rng, state.roles, role)
             log_debug_event(
                 self._logger,
                 "episode_assignment",
@@ -169,22 +172,18 @@ class DebugTrainer:
             rollout = run_episode(
                 trainable_seat=trainable_seat,
                 seat_policies=seat_policies,
+                metadata_update={
+                    "checkpoint_id": f"debug_update_{self._update_index:05d}",
+                    "opponent_pool_id": self._config.opponents.opponent_pool_id,
+                    "opponent_prompt_version": self._config.opponents.prompt_version,
+                    "opponent_cache_behavior": self._config.opponents.cache_behavior,
+                    "opponent_model_names": opponent_models,
+                },
+                update_index=self._update_index,
                 seed=episode_seed,
                 initial_state=state,
                 logger=self._logger,
-            )
-            rollout = rollout.model_copy(
-                update={
-                    "metadata": rollout.metadata.model_copy(
-                        update={
-                            "checkpoint_id": f"debug_update_{self._update_index:05d}",
-                            "opponent_pool_id": self._config.opponents.opponent_pool_id,
-                            "opponent_model_names": opponent_models,
-                            "opponent_prompt_version": self._config.opponents.prompt_version,
-                            "opponent_cache_behavior": self._config.opponents.cache_behavior,
-                        }
-                    )
-                }
+                viewer=self._viewer,
             )
             log_debug_event(
                 self._logger,
@@ -234,6 +233,7 @@ def build_local_huggingface_trainer(
     checkpoint_root: str | Path | None = None,
     logger: logging.Logger | None = None,
     opponent_client: object | None = None,
+    viewer: ViewerEventSink | None = None,
 ) -> DebugTrainer:
     policy = HuggingFaceTrainablePolicy(
         model_name=config.model.trainable_model_name,
@@ -255,6 +255,7 @@ def build_local_huggingface_trainer(
         checkpoint_root=checkpoint_root,
         logger=logger,
         opponent_client=opponent_client,
+        viewer=viewer,
     )
 
 

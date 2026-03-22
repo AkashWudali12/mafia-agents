@@ -6,7 +6,12 @@ from policies.parsing import normalize_action_for_observation, parse_action_payl
 def _observation(*legal_actions: LegalActionSpec) -> Observation:
     return Observation(
         actor=4,
-        public_state=PublicObservationState(day=1, phase=Phase.DAY_DISCUSSION, living_players=(0, 1, 2, 3, 4)),
+        public_state=PublicObservationState(
+            day=1,
+            phase=Phase.DAY_DISCUSSION,
+            living_players=(0, 1, 2, 3, 4),
+            player_labels=("Player E", "Player A", "Player C", "Player D", "Player B"),
+        ),
         private_state=PrivateObservationState(own_role=Role.VILLAGER),
         legal_actions=legal_actions,
     )
@@ -14,8 +19,9 @@ def _observation(*legal_actions: LegalActionSpec) -> Observation:
 
 def test_parse_action_payload_parses_valid_structured_payload() -> None:
     action = parse_action_payload(
-        '{"action_type":"speak","target":1,"intent":"question","message":"who do we trust?"}',
+        '{"action_type":"speak","target":"Player A","intent":"question","message":"who do we trust?"}',
         actor=4,
+        observation=_observation(),
     )
 
     assert action.actor == 4
@@ -88,7 +94,7 @@ def test_normalize_action_for_observation_fills_missing_speak_message() -> None:
     )
 
     assert normalized.action_type == ActionType.SPEAK
-    assert normalized.message == "Player 1 is my strongest suspicion right now."
+    assert normalized.message == "Player A is my strongest suspicion right now."
 
 
 def test_validate_action_for_observation_reuses_engine_validation_with_policy_normalization() -> None:

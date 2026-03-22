@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict
 
 from contracts import Action, Observation, ValidationErrorCode, noop_action
 from game import GameState
-from policies.parsing import validate_action_for_observation
+from policies.parsing import parse_action_payload, validate_action_for_observation
 from policies.schemas import ModelActionPayload
 
 
@@ -33,12 +33,15 @@ def adapt_action_output(
     state: GameState,
     raw_output: str | None = None,
 ) -> ParsedActionResult:
-    submitted_action = Action(
+    submitted_action = parse_action_payload(
+        {
+            "action_type": output.action_type.value,
+            "target": output.target,
+            "intent": output.intent.value if output.intent is not None else None,
+            "message": output.message,
+        },
         actor=actor,
-        action_type=output.action_type,
-        target=output.target,
-        intent=output.intent,
-        message=output.message,
+        observation=observation,
     )
     validation = validate_action_for_observation(submitted_action, observation, state)
     return ParsedActionResult(

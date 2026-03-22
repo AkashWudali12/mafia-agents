@@ -83,4 +83,4 @@ def test_adapt_action_output_fills_missing_speak_message() -> None:
     assert result.submitted_action is not None
     assert result.submitted_action.message is None
     assert result.normalized_action.action_type == ActionType.SPEAK
-    assert result.normalized_action.message == "Player 1 is my strongest suspicion right now."
+    assert result.normalized_action.message == f"{observation.public_state.player_labels[1]} is my strongest suspicion right now."

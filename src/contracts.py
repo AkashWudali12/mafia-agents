@@ -147,6 +147,7 @@ class PublicObservationState(FrozenModel):
     day: int
     phase: Phase
     living_players: tuple[int, ...]
+    player_labels: tuple[str, ...] = ()
     current_speaker: int | None = None
     discussion_round_index: int | None = None
     transcript: tuple[TranscriptEvent, ...] = ()
@@ -186,6 +187,8 @@ class EnvironmentConfig(FrozenModel):
     reveal_roles_on_death: bool = True
     tie_break_rule: TieBreakRule = TieBreakRule.LOWEST_ID
     invalid_action_behavior: str = "noop"
+    shuffle_roles_each_game: bool = False
+    shuffle_player_labels_each_game: bool = True
 
     @model_validator(mode="after")
     def validate_roles(self) -> "EnvironmentConfig":

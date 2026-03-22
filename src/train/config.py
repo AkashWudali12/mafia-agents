@@ -96,6 +96,13 @@ class EvaluationConfig(FrozenModel):
     benchmark_interval: int = 1
 
 
+class ViewerConfig(FrozenModel):
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8765
+    max_cached_events: int = 5000
+
+
 class TrainConfig(FrozenModel):
     project: ProjectConfig
     environment: EnvironmentConfig = Field(default_factory=EnvironmentConfig)
@@ -106,6 +113,7 @@ class TrainConfig(FrozenModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     modal: ModalConfig = Field(default_factory=ModalConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
+    viewer: ViewerConfig = Field(default_factory=ViewerConfig)
 
 
 def load_train_config(path: str | Path) -> TrainConfig:

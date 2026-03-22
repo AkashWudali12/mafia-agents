@@ -41,5 +41,5 @@ class OpenRouterPolicy(Policy):
             )
         except Exception:
             return noop_action(observation.actor)
-        parsed = parse_action_payload(payload, actor=observation.actor)
+        parsed = parse_action_payload(payload, actor=observation.actor, observation=observation)
         return normalize_action_for_observation(parsed, observation)

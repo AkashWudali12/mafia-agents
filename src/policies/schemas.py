@@ -9,6 +9,6 @@ class ModelActionPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     action_type: ActionType
-    target: int | None = None
+    target: int | str | None = None
     intent: DiscussionIntent | None = None
     message: str | None = None

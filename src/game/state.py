@@ -37,6 +37,7 @@ class GameState(FrozenModel):
     day: int = 1
     phase: Phase = Phase.NIGHT_MAFIA
     roles: tuple[Role, ...]
+    player_labels: tuple[str, ...] = ()
     alive: tuple[bool, ...]
     pending_night_actions: PendingNightActions = Field(default_factory=PendingNightActions)
     transcript: tuple[TranscriptEvent, ...] = ()

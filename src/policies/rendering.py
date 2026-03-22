@@ -9,11 +9,11 @@ from .schemas import ModelActionPayload
 
 def render_observation(observation: Observation, max_transcript_events: int | None = None) -> str:
     lines = [
-        f"actor: {observation.actor}",
+        f"actor: {_label_for_player(observation, observation.actor)}",
         f"role: {observation.private_state.own_role.value}",
         f"day: {observation.public_state.day}",
         f"phase: {observation.public_state.phase.value}",
-        "living_players: " + ", ".join(str(player) for player in observation.public_state.living_players),
+        "living_players: " + ", ".join(_label_for_player(observation, player) for player in observation.public_state.living_players),
         "vote_history:",
         *_format_vote_history(observation),
         "elimination_history:",
@@ -38,7 +38,8 @@ def render_model_prompt(observation: Observation, max_transcript_events: int | N
             "Your JSON must follow this schema and only choose from legal_actions.",
             str(schema),
             'If you choose speak, you must include a plain-English message addressed to the other players.',
-            'Example speak output: {"action_type":"speak","target":2,"intent":"accuse","message":"Player 2 is dodging the vote discussion. We should pressure them."}',
+            'Use the public player labels exactly as shown in the observation when you set target.',
+            'Example speak output: {"action_type":"speak","target":"Player C","intent":"accuse","message":"Player C is dodging the vote discussion. We should pressure them."}',
             "Do not repeat the schema, legal_actions, or transcript in your answer.",
             "If a field is not needed, use null or omit it.",
             "Observation:",
@@ -65,7 +66,7 @@ def _format_vote_history(observation: Observation) -> list[str]:
     if not observation.public_state.vote_history:
         return ["- none"]
     return [
-        f"- day={record.day} voter={record.voter} target={record.target}"
+        f"- day={record.day} voter={_label_for_player(observation, record.voter)} target={_label_for_player(observation, record.target)}"
         for record in observation.public_state.vote_history
     ]
 
@@ -78,7 +79,7 @@ def _format_elimination_history(observation: Observation) -> list[str]:
         + " ".join(
             [
                 f"day={record.day}",
-                f"player={record.player}",
+                f"player={_label_for_player(observation, record.player)}",
                 f"role={record.role.value if record.role is not None else 'hidden'}",
                 f"reason={record.reason}",
             ]
@@ -100,14 +101,21 @@ def _format_transcript(observation: Observation, max_transcript_events: int | No
         parts = [
             f"day={event.day}",
             f"phase={event.phase.value}",
-            f"speaker={event.speaker}",
+            f"speaker={_label_for_player(observation, event.speaker)}",
             f"type={event.action_type.value}",
         ]
         if event.intent is not None:
             parts.append(f"intent={event.intent.value}")
         if event.target is not None:
-            parts.append(f"target={event.target}")
+            parts.append(f"target={_label_for_player(observation, event.target)}")
         if event.message is not None:
             parts.append(f"message={event.message}")
         lines.append("- " + " ".join(parts))
     return lines
+
+
+def _label_for_player(observation: Observation, player: int) -> str:
+    labels = observation.public_state.player_labels
+    if 0 <= player < len(labels):
+        return labels[player]
+    return str(player)

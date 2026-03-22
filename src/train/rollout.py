@@ -18,6 +18,7 @@ from policies import (
 from train.logging import log_debug_event
 from train.rewards import compute_outcome_reward
 from train.trajectory import EpisodeMetadata, EpisodeRollout, ObservationSummary, OutcomeRecord, RolloutStep
+from train.viewer import ViewerEventSink, build_episode_start_event, build_transition_events
 
 
 AUTO_ADVANCE_PHASES = frozenset({Phase.DAY_ANNOUNCEMENT, Phase.RESOLUTION})
@@ -53,14 +54,36 @@ def run_episode(
     *,
     trainable_seat: int,
     seat_policies: Mapping[int, Policy],
+    metadata_update: Mapping[str, Any] | None = None,
+    update_index: int = 0,
     seed: int | None = None,
     initial_state: GameState | None = None,
     logger: logging.Logger | None = None,
+    viewer: ViewerEventSink | None = None,
 ) -> EpisodeRollout:
     state = initial_state or new_game(seed=seed)
     start_state = state
     config_hash = _environment_config_hash(state)
+    metadata = EpisodeMetadata(
+        episode_id=_episode_id(seed=state.seed, trainable_seat=trainable_seat, config_hash=config_hash),
+        seed=state.seed,
+        trainable_seat=trainable_seat,
+        trainable_role=state.roles[trainable_seat],
+        trainable_alignment=role_alignment(state.roles[trainable_seat]),
+        environment_config_hash=config_hash,
+    )
+    if metadata_update:
+        metadata = metadata.model_copy(update=dict(metadata_update))
     steps: list[RolloutStep] = []
+
+    if viewer is not None:
+        viewer.publish(
+            build_episode_start_event(
+                state=state,
+                metadata=metadata,
+                update_index=update_index,
+            )
+        )
 
     while not state.is_terminal:
         if state.phase in AUTO_ADVANCE_PHASES:
@@ -83,6 +106,15 @@ def run_episode(
                     next_phase=next_state.phase,
                 )
             )
+            if viewer is not None:
+                for event in build_transition_events(
+                    previous_state=state,
+                    next_state=next_state,
+                    metadata=metadata,
+                    update_index=update_index,
+                    step_index=len(steps),
+                ):
+                    viewer.publish(event)
             state = next_state
             continue
 
@@ -138,16 +170,18 @@ def run_episode(
                 next_phase=next_state.phase,
             )
         )
+        if viewer is not None:
+            for event in build_transition_events(
+                previous_state=state,
+                next_state=next_state,
+                metadata=metadata,
+                update_index=update_index,
+                step_index=len(steps) - 1,
+                action=policy_trace["logged_normalized_action"],
+            ):
+                viewer.publish(event)
         state = next_state
 
-    metadata = EpisodeMetadata(
-        episode_id=_episode_id(seed=state.seed, trainable_seat=trainable_seat, config_hash=config_hash),
-        seed=state.seed,
-        trainable_seat=trainable_seat,
-        trainable_role=state.roles[trainable_seat],
-        trainable_alignment=role_alignment(state.roles[trainable_seat]),
-        environment_config_hash=config_hash,
-    )
     rollout = EpisodeRollout(
         metadata=metadata,
         initial_state=start_state,

@@ -1,6 +1,7 @@
 from .entrypoints import TrainingRunSummary, run_training_from_config, run_training_from_config_path, run_training_updates
 from .checkpoints import CheckpointState, load_checkpoint, save_checkpoint
 from .config import TrainConfig, load_train_config
+from .env import load_dotenv
 from .grpo import GroupedEpisodeBatch, build_grouped_episode_batch, normalize_group_rewards
 from .hf_policy import (
     DEFAULT_TRAINABLE_MODEL,
@@ -22,6 +23,7 @@ from .trainer import (
     sample_trainable_role,
 )
 from .trajectory import EpisodeMetadata, EpisodeRollout, GroupBatchRecord, ObservationSummary, OutcomeRecord, RolloutStep
+from .viewer import LiveTrainingViewer, ViewerEvent, ViewerEventSink, ViewerSnapshot
 
 __all__ = [
     "EpisodeMetadata",
@@ -45,6 +47,10 @@ __all__ = [
     "RolloutStep",
     "TrainConfig",
     "TrainingRunSummary",
+    "ViewerEvent",
+    "ViewerEventSink",
+    "ViewerSnapshot",
+    "LiveTrainingViewer",
     "adapt_action_output",
     "build_scripted_policy_map",
     "build_grouped_episode_batch",
@@ -53,6 +59,7 @@ __all__ = [
     "compute_terminal_reward",
     "load_checkpoint",
     "load_train_config",
+    "load_dotenv",
     "malformed_action_result",
     "next_actor",
     "normalize_group_rewards",
