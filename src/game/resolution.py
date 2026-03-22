@@ -279,14 +279,21 @@ def _progress_after_noop(state: GameState, actor: int) -> GameState:
 
 
 def _next_phase_after_mafia(state: GameState) -> Phase:
-    if seat_for_role(state, Role.DOCTOR) != -1:
+    if _living_seat_for_role(state, Role.DOCTOR) != -1:
         return Phase.NIGHT_DOCTOR
-    if seat_for_role(state, Role.DETECTIVE) != -1:
+    if _living_seat_for_role(state, Role.DETECTIVE) != -1:
         return Phase.NIGHT_DETECTIVE
     return Phase.DAY_ANNOUNCEMENT
 
 
 def _next_phase_after_doctor(state: GameState) -> Phase:
-    if seat_for_role(state, Role.DETECTIVE) != -1:
+    if _living_seat_for_role(state, Role.DETECTIVE) != -1:
         return Phase.NIGHT_DETECTIVE
     return Phase.DAY_ANNOUNCEMENT
+
+
+def _living_seat_for_role(state: GameState, role: Role) -> int:
+    seat = seat_for_role(state, role)
+    if seat == -1:
+        return -1
+    return seat if state.alive[seat] else -1

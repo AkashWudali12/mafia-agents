@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from game import build_observation, new_game
 from train.hf_policy import HuggingFaceRuntimeBundle, HuggingFaceTrainablePolicy
+from train.logging import close_training_logger, configure_training_logger
 
 
 class _DummyTokenizer:
@@ -57,4 +58,27 @@ def test_huggingface_policy_invalid_output_falls_back_to_noop() -> None:
 
     action = policy.act(observation)
 
-    assert action.action_type.value == "noop"
+    assert action.action_type.value == "night_kill"
+    assert action.target == 1
+
+
+def test_huggingface_policy_logs_parse_failures(tmp_path) -> None:
+    logger = configure_training_logger(log_dir=tmp_path, run_name="hf-errors")
+    runtime = HuggingFaceRuntimeBundle(
+        torch=SimpleNamespace(),
+        model=_DummyModel(),
+        tokenizer=_DummyTokenizer(),
+        device="cpu",
+    )
+    policy = HuggingFaceTrainablePolicy(runtime=runtime, logger=logger)
+    policy._generate_raw_output = lambda prompt: "not-json"  # type: ignore[method-assign]
+    observation = build_observation(new_game(), 0)
+
+    action = policy.act(observation)
+    close_training_logger(logger)
+    event_log = (tmp_path / "events.jsonl").read_text(encoding="utf-8")
+
+    assert action.action_type.value == "night_kill"
+    assert action.target == 1
+    assert "hf_policy_parse_recovered" in event_log
+    assert "no JSON object found in model output" in event_log

@@ -160,12 +160,18 @@ def test_render_model_prompt_includes_json_only_instruction_and_schema() -> None
 
     assert "Basic game outline:" in prompt
     assert "Do not reveal hidden chain-of-thought, private deliberation, or internal reasoning" in prompt
+    assert "Never copy the prompt, legal_actions, transcript, or any schema text into your answer." in prompt
+    assert "Never say you are mafia." in prompt
     assert "Role reminders:" in prompt
     assert "Doctor: protect only living players." in prompt
     assert "Do not act as if you can revive eliminated players" in prompt
     assert "Return exactly one JSON object and no extra text." in prompt
+    assert "Allowed action_type values this turn: speak." in prompt
+    assert 'Use only these keys: "action_type" (required), "target" (optional integer), "intent" (optional string), "message" (optional string).' in prompt
+    assert 'For speak, include an "intent" and a short "message". "target" is optional for speak.' in prompt
     assert "If you choose speak, you must include a plain-English message addressed to the other players." in prompt
-    assert "\"action_type\"" in prompt
-    assert "\"target\"" in prompt
+    assert 'Example investigate output: {"action_type":"investigate","target":4}' in prompt
+    assert 'Example speak output: {"action_type":"speak","target":2,"intent":"accuse","message":"Player 2 is dodging the vote discussion. We should pressure them."}' in prompt
+    assert '"$defs"' not in prompt
     assert "Observation:" in prompt
     assert "role: doctor" in prompt

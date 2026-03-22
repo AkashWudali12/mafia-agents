@@ -26,10 +26,10 @@ model:
   trainable_model_name: Qwen/Qwen3-8B
   tokenizer_name: Qwen/Qwen3-8B
   cache_dir: .cache/huggingface
-  max_context_length: 4096
+  max_context_length: 100000
   output_format_mode: typed_json
   device: null
-  max_new_tokens: 96
+  max_new_tokens: 256
   temperature: 0.0
 
 opponents:

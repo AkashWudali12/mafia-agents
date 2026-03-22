@@ -33,6 +33,11 @@ class FakeProvider:
         self.api_key = api_key
         self.app_url = app_url
         self.app_title = app_title
+        FakeProvider.last_call = {
+            "api_key": api_key,
+            "app_url": app_url,
+            "app_title": app_title,
+        }
 
 
 class FakeOpenRouterModel:
@@ -41,7 +46,8 @@ class FakeOpenRouterModel:
         self.provider = provider
 
 
-def test_openrouter_client_requires_api_key(monkeypatch) -> None:
+def test_openrouter_client_requires_api_key(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     client = PydanticAiOpenRouterClient()
@@ -76,3 +82,22 @@ def test_openrouter_client_returns_json_ready_payload(monkeypatch) -> None:
     }
     assert FakeAgent.last_call["prompt"] == "rendered observation"
     assert FakeAgent.last_call["model_settings"] == {"temperature": 0.25, "max_tokens": 96}
+
+
+def test_openrouter_client_loads_api_key_from_dotenv(tmp_path, monkeypatch) -> None:
+    (tmp_path / ".env").write_text("export OPENROUTER_API_KEY=dotenv-key\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr("policies.openrouter_client.Agent", FakeAgent)
+    monkeypatch.setattr("policies.openrouter_client.OpenRouterProvider", FakeProvider)
+    monkeypatch.setattr("policies.openrouter_client.OpenRouterModel", FakeOpenRouterModel)
+
+    client = PydanticAiOpenRouterClient()
+    client.complete(
+        prompt="rendered observation",
+        model="openai/gpt-4o-mini",
+        temperature=0.25,
+        max_tokens=96,
+    )
+
+    assert FakeProvider.last_call["api_key"] == "dotenv-key"

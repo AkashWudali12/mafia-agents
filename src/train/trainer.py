@@ -305,7 +305,7 @@ class DebugTrainer:
             if seat == trainable_seat:
                 continue
             model_name = sample_opponent_model(rng, self._config.opponents.model_names)
-            seat_policies[seat] = OpenRouterPolicy(client=client, model=model_name)
+            seat_policies[seat] = OpenRouterPolicy(client=client, model=model_name, logger=self._logger)
             opponent_models.append(model_name)
             log_debug_event(
                 self._logger,

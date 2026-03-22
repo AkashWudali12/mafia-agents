@@ -56,10 +56,12 @@ Required environment:
 - `OPENROUTER_API_KEY`: OpenRouter API key
 - `RUN_OPENROUTER_LIVE_TESTS=1`: explicit opt-in to run the live networked proof
 
+If you keep these in a repo-root `.env`, the runtime now auto-loads that file before resolving credentials. Both `KEY=value` and `export KEY=value` formats are supported.
+
 Run only the live proof:
 
 ```bash
-RUN_OPENROUTER_LIVE_TESTS=1 OPENROUTER_API_KEY=... uv run pytest tests/integration/test_openrouter_live.py
+uv run env RUN_OPENROUTER_LIVE_TESTS=1 pytest tests/integration/test_openrouter_live.py
 ```
 
 ## Local training
@@ -102,6 +104,8 @@ Environment you may need:
 - no `HF_TOKEN` is required for the current default public model
 - `HF_TOKEN` only if you later switch to a gated/private Hugging Face model
 - `OPENROUTER_API_KEY` is required for training because opponent seats are sampled from the OpenRouter model pool in `train.yaml`
+
+If you store these in a repo-root `.env`, `scripts/train_local.py`, `scripts/train_modal.py`, the OpenRouter client, and the Hugging Face runtime now auto-load that file during startup.
 
 ## Modal training
 
